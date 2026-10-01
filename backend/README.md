@@ -22,6 +22,8 @@ cd .. && npm i && npm run build:api      # → dist-api (VITE_API=1)
 cd backend && npm run build && npm start # http://localhost:3000
 ```
 
+Выкладка на сервер (Docker, Selectel, автодеплой из GitHub): [`deploy/README.md`](../deploy/README.md).
+
 Разработка с горячей перезагрузкой фронтенда: сервер запущен на :3000, в корне `npm run dev:api`
 (Vite на :5173 проксирует `/api` на :3000).
 
@@ -34,7 +36,9 @@ cd backend && npm run build && npm start # http://localhost:3000
 | `npm run start:prod` | без `.env`, переменные из окружения |
 | `npm run test:e2e` | API-тест, 43 проверки (**меняет БД** — перед запуском `npm run db:seed`) |
 | `python3 test/ui-api.py` | UI-тест в браузере (Playwright), 17 проверок; сервер должен раздавать `dist-api`, перед запуском `db:seed` |
-| `npm run db:seed` / `db:reset` / `db:studio` | данные |
+| `npm run db:seed` | **стирает базу** и заливает демо-данные; при `NODE_ENV=production` только с `SEED_RESET=1` |
+| `npm run db:init` | чистая база для работы: настройки, справочник видов разметки, ГП из `ADMIN_LOGIN`/`ADMIN_PASSWORD`; ничего не удаляет |
+| `npm run db:reset` / `db:studio` | пересоздать схему / посмотреть данные |
 
 ## Структура
 

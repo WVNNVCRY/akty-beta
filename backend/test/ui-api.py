@@ -173,6 +173,6 @@ with sync_playwright() as p:
     check(True, 'вход с новым паролем')
 
     check(not errors, f'нет JS-ошибок на странице {errors[:2]}')
-    page.screenshot(path='/home/user/akty-beta/backend/test/ui-api-last.png')
+    page.screenshot(path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ui-api-last.png'))
     b.close()
 print(f'\nUI API: {ok} проверок пройдено')

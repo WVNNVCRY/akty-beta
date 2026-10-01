@@ -19,6 +19,10 @@ function hashPassword(password: string): string {
 }
 
 async function main() {
+  // Защита: seed ПОЛНОСТЬЮ стирает базу. На сервере (NODE_ENV=production) — только с SEED_RESET=1.
+  if (process.env.NODE_ENV === 'production' && process.env.SEED_RESET !== '1') {
+    throw new Error('seed стирает все данные. На сервере запустите явно: SEED_RESET=1 npx tsx prisma/seed.ts');
+  }
   // Порядок важен из-за внешних ключей
   await prisma.$transaction([
     prisma.notification.deleteMany(),

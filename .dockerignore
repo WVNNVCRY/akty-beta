@@ -1,0 +1,9 @@
+**/node_modules
+dist
+dist-*
+backend/dist
+backend/storage
+backend/.env
+deploy/.env
+.git
+**/*.png

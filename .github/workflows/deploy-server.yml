@@ -1,0 +1,31 @@
+name: Deploy to server
+
+# Выкладка на сервер после успешного CI в main (или вручную: Actions → Deploy to server → Run workflow).
+# Нужны секреты репозитория: SSH_HOST, SSH_USER (обычно root), SSH_KEY (приватный ключ). Без них шаг пропускается.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Обновить сервер
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          if [ -z "$SSH_HOST" ] || [ -z "$SSH_KEY" ]; then
+            echo "::notice::Секреты SSH_HOST/SSH_KEY не заданы — выкладка пропущена"; exit 0
+          fi
+          mkdir -p ~/.ssh && printf '%s\n' "$SSH_KEY" > ~/.ssh/id && chmod 600 ~/.ssh/id
+          ssh -i ~/.ssh/id -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "${SSH_USER:-root}@$SSH_HOST" 'bash /opt/akty/deploy/update.sh'

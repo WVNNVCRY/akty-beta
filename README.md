@@ -80,4 +80,6 @@ npm run build:api                  # серверный режим → dist-api 
 ## Backend
 
 В папке [`backend/`](backend/README.md): NestJS + Prisma + PostgreSQL — JWT-авторизация, роли, CRUD объектов и выполнений,
-вся логика согласования, файлы (local/S3), уведомления, Telegram, напоминания 2/5 дней, e2e-тесты. Запуск — в backend/README.
+вся логика согласования, файлы (local/S3), уведомления, Telegram, напоминания 2/5 дней, e2e-тесты. Запуск — в backend/README, выкладка на сервер — в [`deploy/README.md`](deploy/README.md).
+
+CI (`.github/workflows/ci.yml`) на каждый push: сборка обоих режимов фронтенда, API-тест (43), UI-тест в браузере (17), проверка Docker-образа.
