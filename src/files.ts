@@ -1,4 +1,8 @@
-// Хранилище файлов в IndexedDB — имитация S3/MinIO для прототипа.
+// Файлы. Демо-режим: IndexedDB (имитация S3/MinIO). API-режим: загрузка/скачивание через бэкенд
+// с проверкой прав на сервере.
+import { API_MODE, api, apiBlob } from './api';
+import type { FileRef } from './types';
+
 const DB = 'akty-beta-files';
 const STORE = 'files';
 
@@ -97,4 +101,23 @@ export async function makeEmptyDocx(): Promise<Blob> {
     + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="850" w:bottom="1134" w:left="1701" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>'
     + '</w:body></w:document>');
   return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+/** Получить содержимое файла: с сервера (API) или из IndexedDB (демо, с заглушкой для демо-данных). */
+export async function fetchFileBlob(f: FileRef): Promise<Blob> {
+  if (API_MODE) return (await apiBlob('GET', `/files/${f.id}`)).blob;
+  return (await getFile(f.id)) || makeDemoPdf(f.name);
+}
+
+/** Загрузить PDF подрядчика. В API-режиме сервер проверяет формат и сохраняет в S3/MinIO. */
+export async function uploadPdf(file: File, kind: 'SCHEME' | 'PHOTO', userId: string): Promise<FileRef> {
+  if (API_MODE) {
+    const fd = new FormData();
+    fd.append('kind', kind);
+    fd.append('file', file, file.name);
+    return api<FileRef>('POST', '/files', fd);
+  }
+  const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  await putFile(id, file);
+  return { id, name: file.name, size: file.size, uploadedAt: new Date().toISOString(), uploadedBy: userId };
 }

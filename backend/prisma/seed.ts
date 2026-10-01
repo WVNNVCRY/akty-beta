@@ -235,7 +235,7 @@ async function main() {
   await form(e8.id, MECH.id, { '1.1': 1700 }, 'TITLE_CHANGED', 3);
   await form(e8.id, HAND.id, { '1.14.1': 200 }, 'TITLE_CHANGED', 3);
   const reason = 'Уточнён титульный список: добавлен участок у д. 45 (+30 м²)';
-  await prisma.titleChange.create({ data: { executionId: e8.id, fromM2: D(250), toM2: D(280), reason, afterApproval: true, userId: U.gc.id, createdAt: daysAgo(3) } });
+  await prisma.titleChange.create({ data: { executionId: e8.id, fromM2: D(250), toM2: D(280), reason, duringApproval: true, userId: U.gc.id, createdAt: daysAgo(3) } });
   await prisma.historyEntry.create({ data: { executionId: e8.id, userId: U.gc.id, action: 'TITLE_CHANGED', comment: `250 → 280 м². ${reason}`, highlight: true, meta: { from: 250, to: 280 }, createdAt: daysAgo(3) } });
   for (const uid of [U.mech.id, U.hand.id, U.client.id, U.manager.id]) {
     await notify(uid, 'IMPORTANT', 'Объект №8: титул изменён после одобрения (250 → 280 м²), нужен пересчёт', 3, { objectId: o8.id, executionId: e8.id });

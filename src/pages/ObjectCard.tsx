@@ -17,11 +17,9 @@ import {
   COUNTED, EDITABLE, actLocked, actOf, coef, executionBalance, executionJournal, fmt, formTotalM2, isStaff, lineM2, linesM2,
   round2, visibleExecutions, visibleObjects,
 } from '../logic';
-import {
-  allocatedM2, archiveAct, canManageObjects, clientApproveForm, clientRejectForm, deleteExecution, deleteObject, saveExecution, saveForm,
-  submitForm, uid, withdrawForm,
-} from '../engine';
-import { putFile } from '../files';
+import { allocatedM2, canManageObjects, uid } from '../engine';
+import { actions } from '../actions';
+import { uploadPdf } from '../files';
 import { FileLink, History, fmtDate, fmtDay, useAction, useGuardedClose, userName } from '../components/common';
 import Chat from '../components/Chat';
 import ActActions from '../components/ActActions';
@@ -126,7 +124,7 @@ function VolumesTable({ ex }: { ex: Execution }) {
 
 // ---------------- Форма подрядчика ----------------
 
-function UploadPdf({ value, onChange, disabled, label }: { value?: FileRef | null; onChange: (f: FileRef | null) => void; disabled: boolean; label: string }) {
+function UploadPdf({ value, onChange, disabled, label, kind }: { value?: FileRef | null; onChange: (f: FileRef | null) => void; disabled: boolean; label: string; kind: 'SCHEME' | 'PHOTO' }) {
   const me = useMe()!;
   const { message } = AntApp.useApp();
   return (
@@ -146,10 +144,12 @@ function UploadPdf({ value, onChange, disabled, label }: { value?: FileRef | nul
               message.error('Файл больше 30 МБ');
               return Upload.LIST_IGNORE;
             }
-            const id = uid();
-            await putFile(id, file);
-            onChange({ id, name: file.name, size: file.size, uploadedAt: new Date().toISOString(), uploadedBy: me.id });
-            message.success(`Загружен: ${file.name}`);
+            try {
+              onChange(await uploadPdf(file, kind, me.id));
+              message.success(`Загружен: ${file.name}`);
+            } catch (e: any) {
+              message.error(e?.message || 'Не удалось загрузить файл');
+            }
             return false;
           }}
         >
@@ -193,11 +193,12 @@ function ContractorFormEditor({ ex }: { ex: Execution }) {
   const tol = data.settings.toleranceM2;
   const usedTypes = new Set(lines.map((l) => l.markingTypeId));
 
-  const save = (andSubmit: boolean) => act((d, userId) => {
-    const f = saveForm(d, userId, ex.id, { lines: clean, schemeFile: scheme ?? null, photoFile: photo ?? null });
-    if (andSubmit) return submitForm(d, userId, f.id);
-    return 'Черновик сохранён';
-  }, (r) => r);
+  const [busy, setBusy] = useState(false);
+  const save = async (andSubmit: boolean) => {
+    setBusy(true);
+    await act(() => actions.saveForm(ex.id, { lines: clean, schemeFile: scheme ?? null, photoFile: photo ?? null }, andSubmit), (r) => r);
+    setBusy(false);
+  };
 
   const lastComment = form && [...form.history].reverse().find((h) => h.comment)?.comment;
 
@@ -279,18 +280,18 @@ function ContractorFormEditor({ ex }: { ex: Execution }) {
         </div>
       )}
       <Space direction="vertical" style={{ marginTop: 12 }}>
-        <UploadPdf label="PDF-схема" value={scheme} onChange={setScheme} disabled={!editable} />
-        <UploadPdf label="PDF-фото" value={photo} onChange={setPhoto} disabled={!editable} />
+        <UploadPdf kind="SCHEME" label="PDF-схема" value={scheme} onChange={setScheme} disabled={!editable} />
+        <UploadPdf kind="PHOTO" label="PDF-фото" value={photo} onChange={setPhoto} disabled={!editable} />
       </Space>
       <div style={{ marginTop: 12 }}>
         <Space wrap>
-          {editable && <Button icon={<SaveOutlined />} onClick={() => save(false)}>Сохранить черновик</Button>}
-          {editable && <Button type="primary" icon={<SendOutlined />} onClick={() => save(true)}>Подать форму</Button>}
+          {editable && <Button icon={<SaveOutlined />} loading={busy} onClick={() => save(false)}>Сохранить черновик</Button>}
+          {editable && <Button type="primary" icon={<SendOutlined />} loading={busy} onClick={() => save(true)}>Подать форму</Button>}
           {canWithdraw && (
             <Popconfirm
               title="Отозвать форму?"
               description={form!.status === 'APPROVED_BY_CLIENT' ? 'Форма уже одобрена заказчиком — он и ГП получат уведомление.' : 'Форма вернётся в черновик, акт уйдёт на доработку.'}
-              onConfirm={() => act((d, u) => withdrawForm(d, u, form!.id), 'Форма отозвана')}
+              onConfirm={() => act(() => actions.withdrawForm(form!.id), 'Форма отозвана')}
             >
               <Button icon={<RollbackOutlined />}>Отозвать</Button>
             </Popconfirm>
@@ -351,7 +352,7 @@ export function FormReview({ ex, contractorId }: { ex: Execution; contractorId: 
           {canDecide && (
             <div style={{ marginTop: 8 }}>
               <Space>
-                <Button type="primary" icon={<CheckOutlined />} onClick={() => act((d, u) => clientApproveForm(d, u, form.id), 'Форма одобрена')}>Одобрить</Button>
+                <Button type="primary" icon={<CheckOutlined />} onClick={() => act(() => actions.clientApproveForm(form.id), 'Форма одобрена')}>Одобрить</Button>
                 <Button danger icon={<CloseOutlined />} onClick={() => setRejectOpen(true)}>Отклонить</Button>
               </Space>
             </div>
@@ -364,10 +365,11 @@ export function FormReview({ ex, contractorId }: { ex: Execution; contractorId: 
         open={rejectOpen} title={`Отклонить форму: ${cName(data, contractorId)}`}
         okText="Отклонить" okButtonProps={{ danger: true, disabled: !comment.trim() }}
         onCancel={() => guard(!!comment.trim(), () => { setRejectOpen(false); setComment(''); })}
-        onOk={() => {
-          act((d, u) => clientRejectForm(d, u, form!.id, comment), 'Форма отклонена и возвращена подрядчику');
-          setRejectOpen(false);
-          setComment('');
+        onOk={async () => {
+          if (await act(() => actions.clientRejectForm(form!.id, comment), 'Форма отклонена и возвращена подрядчику')) {
+            setRejectOpen(false);
+            setComment('');
+          }
         }}
       >
         <Typography.Paragraph type="secondary">Форма вернётся подрядчику. Одобренные формы других подрядчиков сохранят одобрение, если их объём не изменится.</Typography.Paragraph>
@@ -394,14 +396,11 @@ export function ExecutionModal({ open, onClose, objectId, ex }: { open: boolean;
     <Modal
       open={open} width={640} destroyOnClose okText="Сохранить" onCancel={() => guard(form.isFieldsTouched(), onClose)}
       title={ex ? `Редактирование: ${ex.name}` : 'Новое выполнение'}
-      onOk={() => form.validateFields().then((v) => {
-        const ok = act((d, u) => {
-          saveExecution(d, u, objectId, ex?.id || null, {
-            number: v.number, name: v.name, periodFrom: v.period[0].format('YYYY-MM-DD'), periodTo: v.period[1].format('YYYY-MM-DD'),
-            titleM2: Number(v.titleM2), contractorIds: v.contractorIds,
-          }, v.reason || '');
-          return true;
-        }, 'Выполнение сохранено');
+      onOk={() => form.validateFields().then(async (v) => {
+        const ok = await act(() => actions.saveExecution(objectId, ex?.id || null, {
+          number: v.number, name: v.name, periodFrom: v.period[0].format('YYYY-MM-DD'), periodTo: v.period[1].format('YYYY-MM-DD'),
+          titleM2: Number(v.titleM2), contractorIds: v.contractorIds,
+        }, v.reason || ''), 'Выполнение сохранено');
         if (ok) onClose();
       })}
     >
@@ -483,7 +482,7 @@ function ExecutionPanel({ ex }: { ex: Execution }) {
             title={`Удалить ${ex.name}?`}
             description={<div style={{ maxWidth: 320 }}>Будут удалены формы подрядчиков{exAct ? `, акт ${exAct.number}` : ''} и загруженные к ним данные. Участники получат уведомление. Действие необратимо.</div>}
             okText="Удалить" okButtonProps={{ danger: true }}
-            onConfirm={() => run((d, u) => deleteExecution(d, u, ex.id), 'Выполнение удалено')}
+            onConfirm={() => run(() => actions.deleteExecution(ex.id), 'Выполнение удалено')}
           >
             <Button danger icon={<DeleteOutlined />} disabled={finalized} title={finalized ? 'Есть согласованный/архивный акт — удаление запрещено' : undefined}>Удалить выполнение</Button>
           </Popconfirm>
@@ -551,7 +550,7 @@ export default function ObjectCard() {
               disabled={!approvedActs.length}
               title={`Отправить в архив согласованные акты (${approvedActs.length})?`}
               description={approvedActs.map((a) => a.number).join(', ')}
-              onConfirm={() => run((d, u) => approvedActs.forEach((a) => archiveAct(d, u, a.id)), 'Акты отправлены в архив')}
+              onConfirm={() => run(() => actions.archiveActs(approvedActs.map((a) => a.id)), 'Акты отправлены в архив')}
             >
               <Button icon={<InboxOutlined />} disabled={!approvedActs.length}>В архив{approvedActs.length ? ` (${approvedActs.length})` : ''}</Button>
             </Popconfirm>}
@@ -562,7 +561,7 @@ export default function ObjectCard() {
                 title={`Удалить объект №${obj.excelRowNumber}?`}
                 description={<div style={{ maxWidth: 320 }}>Будут удалены все выполнения ({exs.length}), формы, акты и чат объекта. Действие необратимо.</div>}
                 okText="Удалить" okButtonProps={{ danger: true }}
-                onConfirm={() => { if (run((d, u) => { deleteObject(d, u, obj.id); return true; }, 'Объект удалён')) nav('/objects'); }}
+                onConfirm={async () => { if (await run(() => actions.deleteObject(obj.id), 'Объект удалён')) nav('/objects'); }}
               >
                 <Button danger icon={<DeleteOutlined />} disabled={locked} title={locked ? 'На объекте есть согласованные/архивные акты — удаление запрещено' : undefined}>Удалить</Button>
               </Popconfirm>

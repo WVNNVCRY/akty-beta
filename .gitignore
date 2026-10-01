@@ -4,3 +4,7 @@ dist-single
 *.tsbuildinfo
 .DS_Store
 .env
+backend/storage
+backend/.env
+dist-api
+backend/test/*.png

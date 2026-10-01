@@ -295,19 +295,23 @@ model ExecutionContractor {
   @@map("execution_contractors")
 }
 
-/// Изменение титула выполнения. afterApproval = true → подсветка в UI,
-/// запись в журнал и уведомление IMPORTANT всем участникам.
+/// Изменение титула выполнения. duringApproval = true — титул изменён, когда по
+/// выполнению уже шло согласование (были поданные формы): подсветка в UI, запись
+/// в журнал, уведомление IMPORTANT, формы → TITLE_CHANGED.
+/// resolvedAt — когда формы пересчитаны и акт снова ушёл заказчику
+/// (пока NULL — в карточке выполнения висит предупреждение).
 model TitleChange {
-  id            String    @id @default(uuid()) @db.Uuid
-  executionId   String    @db.Uuid
-  execution     Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
-  fromM2        Decimal   @db.Decimal(12, 3)
-  toM2          Decimal   @db.Decimal(12, 3)
-  reason        String
-  afterApproval Boolean   @default(false)
-  userId        String?   @db.Uuid
-  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  createdAt     DateTime  @default(now())
+  id             String    @id @default(uuid()) @db.Uuid
+  executionId    String    @db.Uuid
+  execution      Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  fromM2         Decimal   @db.Decimal(12, 3)
+  toM2           Decimal   @db.Decimal(12, 3)
+  reason         String
+  duringApproval Boolean   @default(false)
+  resolvedAt     DateTime?
+  userId         String?   @db.Uuid
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
 
   @@index([executionId, createdAt])
   @@map("title_changes")

@@ -113,6 +113,8 @@ export interface FileRef {
 export interface FormLine {
   markingTypeId: string;
   linearM: number;
+  /** Зафиксированная площадь (API-режим, только согласованные/архивные акты): не меняется при смене коэффициентов. */
+  m2?: number;
 }
 
 export interface HistoryEntry {

@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { App as AntApp, Badge, Button, Layout, Menu, Popconfirm, Select, Space, Tag, Tooltip, Typography } from 'antd';
+import { App as AntApp, Badge, Button, Layout, Menu, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import {
   AppstoreOutlined, AuditOutlined, BellOutlined, CloudUploadOutlined, DashboardOutlined, EnvironmentOutlined,
   FieldTimeOutlined, FileTextOutlined, InboxOutlined, LogoutOutlined, SettingOutlined, TeamOutlined,
@@ -10,6 +10,7 @@ import { useMe, useStore } from './store';
 import { ROLE_LABEL } from './types';
 import { checkReminders, nowMs } from './engine';
 import { clearFiles } from './files';
+import { API_MODE } from './api';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Objects from './pages/Objects';
@@ -71,7 +72,7 @@ function Shell() {
       </Sider>
       <Layout>
         <Header style={{ background: '#fff', padding: '0 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', height: 'auto', minHeight: 64, lineHeight: '64px' }}>
-          <Space style={{ background: '#fffbe6', border: '1px dashed #faad14', borderRadius: 6, padding: '0 8px', lineHeight: '36px' }} wrap>
+          {!API_MODE && <Space style={{ background: '#fffbe6', border: '1px dashed #faad14', borderRadius: 6, padding: '0 8px', lineHeight: '36px' }} wrap>
             <Tag color="orange">ДЕМО</Tag>
             <Tooltip title="Сдвиг времени для проверки напоминаний (2 / 5 дней) и виджета «Проблемные акты»">
               <span><FieldTimeOutlined /> {dayjs(nowMs({ clockOffsetDays } as any)).format('DD.MM.YYYY')}{clockOffsetDays ? ` (+${clockOffsetDays} дн.)` : ''}</span>
@@ -100,7 +101,8 @@ function Shell() {
             }}>
               <Button size="small" danger>Сброс</Button>
             </Popconfirm>
-          </Space>
+          </Space>}
+          {API_MODE && <Tag color="green" style={{ lineHeight: '22px' }}>Сервер · общая база</Tag>}
           <div style={{ flex: 1 }} />
           <Badge count={unread} size="small">
             <Button shape="circle" icon={<BellOutlined />} onClick={() => nav('/notifications')} />
@@ -131,7 +133,28 @@ function Shell() {
   );
 }
 
+/** API-режим: первая загрузка снимка и автообновление (новые уведомления, чат, действия других участников). */
+function useServerSync() {
+  const userId = useStore((s) => s.currentUserId);
+  const refresh = useStore((s) => s.refresh);
+  const logout = useStore((s) => s.logout);
+  useEffect(() => {
+    if (!API_MODE || !userId) return;
+    refresh().catch(() => logout());
+    const tick = () => { if (document.visibilityState === 'visible') refresh().catch(() => undefined); };
+    const timer = setInterval(tick, 15_000);
+    window.addEventListener('focus', tick);
+    return () => { clearInterval(timer); window.removeEventListener('focus', tick); };
+  }, [userId, refresh, logout]);
+}
+
 export default function App() {
+  useServerSync();
   const me = useMe();
+  const userId = useStore((s) => s.currentUserId);
+  const loaded = useStore((s) => s.loaded);
+  if (API_MODE && userId && !loaded) {
+    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin size="large" tip="Загрузка данных…"><div style={{ padding: 50 }} /></Spin></div>;
+  }
   return <HashRouter>{me ? <Shell /> : <Login />}</HashRouter>;
 }

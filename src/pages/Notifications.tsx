@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import { useData, useMe } from '../store';
 import { NOTIFICATION_KIND, type Notification, type NotificationKind } from '../types';
 import { nowMs } from '../engine';
+import { actions } from '../actions';
 import { fmtDate, useAction } from '../components/common';
 
 type GroupBy = 'object' | 'day' | 'kind';
@@ -95,10 +96,7 @@ export default function Notifications() {
 
   const pageGroups = groups.slice((page - 1) * PAGE, page * PAGE);
 
-  const markRead = (ids: string[]) => act((d) => {
-    const set = new Set(ids);
-    d.notifications.forEach((n) => { if (set.has(n.id)) n.read = true; });
-  });
+  const markRead = (ids: string[]) => act(() => actions.markRead(ids));
 
   const open = (n: Notification) => {
     markRead([n.id]);

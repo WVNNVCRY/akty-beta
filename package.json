@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "dev:api": "vite --mode api --host 0.0.0.0",
     "build": "tsc -b && vite build",
+    "build:single": "tsc -b && vite build --mode single",
+    "build:api": "tsc -b && vite build --mode api",
     "preview": "vite preview --host 0.0.0.0 --port 4173"
   },
   "dependencies": {

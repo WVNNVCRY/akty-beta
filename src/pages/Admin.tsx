@@ -1,13 +1,15 @@
 import { useState, type ReactNode } from 'react';
-import { Alert, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag } from 'antd';
+import { Alert, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Typography } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { useData } from '../store';
 import { ROLE_LABEL, type Data, type Role } from '../types';
 import { fmt } from '../logic';
 import { nowIso, uid } from '../engine';
 import { useAction, useGuardedClose } from '../components/common';
+import { actions, type AdminColl } from '../actions';
+import { API_MODE } from '../api';
 
-type Coll = 'users' | 'contractors' | 'clients' | 'markingTypes';
+type Coll = AdminColl;
 
 interface Field { name: string; label: string; input: ReactNode; required?: boolean; show?: (v: any) => boolean }
 
@@ -31,11 +33,11 @@ function Crud({ coll, columns, fields, canDelete, defaults, normalize }: {
             <Space>
               <Button size="small" icon={<EditOutlined />} onClick={() => setEdit(r)} />
               {canDelete && (
-                <Popconfirm title="Удалить?" onConfirm={() => act((d) => {
+                <Popconfirm title="Удалить?" onConfirm={() => act(() => actions.adminDelete(coll, r.id, (d) => {
                   const why = canDelete(d, r);
                   if (why) throw new Error(why);
                   (d as any)[coll] = (d as any)[coll].filter((x: any) => x.id !== r.id);
-                }, 'Удалено')}>
+                }), 'Удалено')}>
                   <Button size="small" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
               )}
@@ -45,20 +47,21 @@ function Crud({ coll, columns, fields, canDelete, defaults, normalize }: {
       />
       <Modal
         open={!!edit} destroyOnClose title={edit?.id ? 'Редактирование' : 'Создание'} okText="Сохранить" onCancel={() => guard(form.isFieldsTouched(), () => setEdit(null))}
-        onOk={() => form.validateFields().then((v) => {
-          const ok = act((d) => {
+        onOk={() => form.validateFields().then(async (v) => {
+          const ok = await act(() => actions.adminSave(coll, edit?.id || null, v, (d) => {
             normalize?.(v, d, edit?.id ? edit : undefined);
             const list = (d as any)[coll] as any[];
             if (edit?.id) Object.assign(list.find((x) => x.id === edit.id), v);
             else list.push({ id: uid(), ...(defaults ? defaults(d) : {}), ...v });
-            return true;
-          }, 'Сохранено');
+          }), 'Сохранено');
           if (ok) setEdit(null);
         })}
       >
         <Form form={form} layout="vertical" preserve={false} initialValues={edit || {}}>
           {fields.filter((f) => !f.show || f.show({ ...edit, ...values })).map((f) => (
-            <Form.Item key={f.name} name={f.name} label={f.label} rules={f.required ? [{ required: true, message: 'Обязательное поле' }] : []} valuePropName={f.name === 'active' ? 'checked' : 'value'}>
+            <Form.Item key={f.name} name={f.name} label={f.label}
+              rules={f.required && !(API_MODE && f.name === 'password' && edit?.id) ? [{ required: true, message: 'Обязательное поле' }] : []}
+              extra={API_MODE && f.name === 'password' && edit?.id ? 'Оставьте пустым, чтобы не менять' : undefined} valuePropName={f.name === 'active' ? 'checked' : 'value'}>
               {f.input}
             </Form.Item>
           ))}
@@ -143,7 +146,9 @@ export default function Admin() {
           key: 'mt', label: 'Виды разметки', children: (
             <>
               <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Коэффициенты перевода п.м → м² демонстрационные (ширина линии × доля заполнения). Уточните по вашим нормативам."
-                description="Изменение коэффициента влияет на пересчёт всех форм, включая уже поданные." />
+                description={API_MODE
+                ? 'Изменение коэффициента пересчитывает все формы и акты, которые ещё не согласованы. Согласованные и архивные акты сохраняют коэффициенты, по которым были согласованы.'
+                : 'Изменение коэффициента влияет на пересчёт всех форм, включая уже поданные.'} />
               <Crud
                 coll="markingTypes"
                 canDelete={(d, r) => (d.forms.some((f) => f.lines.some((l) => l.markingTypeId === r.id)) ? 'Вид разметки используется в формах подрядчиков' : null)}
@@ -167,13 +172,17 @@ export default function Admin() {
         {
           key: 'settings', label: 'Настройки', children: (
             <Form layout="vertical" style={{ maxWidth: 420 }} initialValues={s}
-              onFinish={(v) => act((d) => { d.settings = { ...d.settings, ...v }; }, 'Настройки сохранены')}>
+              onFinish={(v) => act(() => actions.saveSettings(v), 'Настройки сохранены')}>
               <Form.Item name="remindFirstDays" label="Первое напоминание (недостача), дней"><InputNumber min={1} /></Form.Item>
               <Form.Item name="remindSecondDays" label="Второе напоминание (требуется вмешательство), дней"><InputNumber min={1} /></Form.Item>
               <Form.Item name="toleranceM2" label="Допуск при сверке с титулом, м²" extra="0 — строгое равенство, как в ТЗ">
                 <InputNumber min={0} step={0.1} />
               </Form.Item>
-              <Button type="primary" htmlType="submit">Сохранить</Button>
+              <Space>
+                <Button type="primary" htmlType="submit">Сохранить</Button>
+                <Button onClick={() => act(() => actions.runReminders(), (m) => m)}>Проверить напоминания сейчас</Button>
+              </Space>
+              {API_MODE && <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>На сервере проверка напоминаний запускается автоматически каждый час.</Typography.Paragraph>}
             </Form>
           ),
         },

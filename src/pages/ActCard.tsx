@@ -6,8 +6,8 @@ import JSZip from 'jszip';
 import { useData, useMe } from '../store';
 import { ACT_STATUS, type Act, type Data, type FileRef } from '../types';
 import { canDownloadFile, coef, fmt, isStaff, lineM2, linesM2, round2, visibleActs } from '../logic';
-import { correctAct } from '../engine';
-import { getFile, makeDemoPdf, downloadBlob } from '../files';
+import { actions } from '../actions';
+import { downloadBlob, fetchFileBlob } from '../files';
 import { FileLink, History, fmtDate, fmtDay, useAction, useGuardedClose } from '../components/common';
 import Chat from '../components/Chat';
 import ActActions from '../components/ActActions';
@@ -37,7 +37,7 @@ export async function downloadActZip(data: Data, act: Act, filter: (f: FileRef) 
   for (const r of act.rows) {
     const folder = zip.folder(cName(data, r.contractorId).replace(/[\\/:*?"<>|«»]/g, ''))!;
     for (const [kind, f] of [['Схема', r.schemeFile], ['Фото', r.photoFile]] as const) {
-      if (f && filter(f)) folder.file(`${kind}_${f.name}`, (await getFile(f.id)) || makeDemoPdf(f.name));
+      if (f && filter(f)) folder.file(`${kind}_${f.name}`, await fetchFileBlob(f));
     }
   }
   const blob = await zip.generateAsync({ type: 'blob' });
@@ -60,8 +60,8 @@ function CorrectionModal({ act, open, onClose }: { act: Act; open: boolean; onCl
   return (
     <Modal open={open} width={760} title={`Корректировка акта ${act.number} (только ГП)`} okText="Сохранить корректировку" onCancel={() => guard(dirty || !!reason.trim(), onClose)}
       okButtonProps={{ disabled: !reason.trim() }}
-      onOk={() => {
-        const ok = run((d, u) => { correctAct(d, u, act.id, vals, reason); return true; }, 'Корректировка сохранена и записана в журнал');
+      onOk={async () => {
+        const ok = await run(() => actions.correctAct(act.id, vals, reason), 'Корректировка сохранена и записана в журнал');
         if (ok) onClose();
       }}>
       <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Акт уже согласован. Каждое изменение записывается в историю с причиной." />
@@ -88,6 +88,7 @@ function CorrectionModal({ act, open, onClose }: { act: Act; open: boolean; onCl
 const FLOW = ['ON_CHECK_CLIENT', 'ON_CHECK_GC', 'APPROVED', 'ARCHIVED'];
 
 export default function ActCard() {
+  const zipAction = useAction();
   const { id } = useParams();
   const nav = useNavigate();
   const data = useData();
@@ -109,7 +110,7 @@ export default function ActCard() {
           <Space wrap>
             <ActActions act={act} />
             {me.role === 'GC' && ['APPROVED', 'ARCHIVED'].includes(act.status) && <Button icon={<EditOutlined />} onClick={() => setCorrect(true)}>Корректировка</Button>}
-            <Button icon={<DownloadOutlined />} onClick={() => downloadActZip(data, act, (f) => canDownloadFile(data, me, f.id))}>
+            <Button icon={<DownloadOutlined />} onClick={() => zipAction(() => downloadActZip(data, act, (f) => canDownloadFile(data, me, f.id)))}>
               {me.role === 'CONTRACTOR' ? 'Мои файлы (zip)' : 'Все файлы (zip)'}
             </Button>
           </Space>

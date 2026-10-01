@@ -5,7 +5,8 @@ import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useData, useMe } from '../store';
 import { ACT_STATUS, FORM_STATUS, type Data, type Execution, type SiteObject, type User } from '../types';
 import { STAGE, actOf, executionStage, fmt, isStaff, visibleExecutions, visibleObjects, type Stage } from '../logic';
-import { allocatedM2, canManageObjects, saveObject } from '../engine';
+import { allocatedM2, canManageObjects } from '../engine';
+import { actions } from '../actions';
 import { useAction, useGuardedClose } from '../components/common';
 
 export const DISTRICTS = ['ЦАО', 'САО', 'СВАО', 'ВАО', 'ЮВАО', 'ЮАО', 'ЮЗАО', 'ЗАО', 'СЗАО', 'ЗелАО', 'НАО', 'ТАО'];
@@ -46,8 +47,8 @@ export function ObjectModal({ open, onClose, obj }: { open: boolean; onClose: ()
       onCancel={() => guard(form.isFieldsTouched(), onClose)}
       okText="Сохранить"
       destroyOnClose
-      onOk={() => form.validateFields().then((v) => {
-        const ok = act((d, u) => saveObject(d, u, obj?.id || null, v), 'Объект сохранён');
+      onOk={() => form.validateFields().then(async (v) => {
+        const ok = await act(() => actions.saveObject(obj?.id || null, v), 'Объект сохранён');
         if (ok) onClose();
       })}
     >

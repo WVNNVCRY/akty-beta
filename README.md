@@ -1,13 +1,23 @@
 # Согласование актов скрытых работ — бета (кликабельный прототип)
 
-Фронтенд на React + Vite + TypeScript + Ant Design. Бэкенда нет. Данные хранятся в браузере: состояние в localStorage, PDF в IndexedDB. У каждого тестировщика в его браузере своя копия данных.
+Фронтенд на React + Vite + TypeScript + Ant Design. Работает в двух режимах:
+
+| Режим | Сборка | Данные |
+|---|---|---|
+| **Демо** (GitHub Pages) | `npm run build` → `dist/` | в браузере: состояние в localStorage, PDF в IndexedDB; у каждого тестировщика своя копия, есть панель «ДЕМО» (сдвиг времени, сброс) |
+| **Сервер** | `npm run build:api` → `dist-api/` | общая база PostgreSQL через NestJS API ([`backend/`](backend/README.md)); логика и права — на сервере, данные обновляются каждые 15 с и при возврате на вкладку |
+
+Интерфейс в обоих режимах один и тот же. Переменные сборки: `VITE_API=1` — серверный режим (задаётся файлом `.env.api`),
+`VITE_API_URL` — адрес API, если он не на том же домене (по умолчанию `/api`), `VITE_DEMO_LOGINS=0` — скрыть кнопки быстрого входа.
 
 ## Запуск
 ```bash
 npm i
 npm run dev              # разработка, http://localhost:5173
 npm run build && npm run preview   # сборка, http://localhost:4173
-npx vite build --mode single       # один файл dist-single/index.html (открывается двойным кликом)
+npm run build:single               # один файл dist-single/index.html (открывается двойным кликом)
+npm run dev:api                    # серверный режим, /api проксируется на localhost:3000
+npm run build:api                  # серверный режим → dist-api (его раздаёт backend)
 ```
 
 ## Деплой на GitHub Pages
@@ -67,6 +77,7 @@ npx vite build --mode single       # один файл dist-single/index.html (�
 - Отозвать форму можно, пока акт не ушёл к ГП.
 - Корректировка после согласования доступна только ГП, с обязательной причиной.
 
-## Backend: схема БД
+## Backend
 
-В папке [`backend/`](backend/README.md) лежат схема Prisma для PostgreSQL, миграция, seed с демо-данными и docker-compose (PostgreSQL + MinIO).
+В папке [`backend/`](backend/README.md): NestJS + Prisma + PostgreSQL — JWT-авторизация, роли, CRUD объектов и выполнений,
+вся логика согласования, файлы (local/S3), уведомления, Telegram, напоминания 2/5 дней, e2e-тесты. Запуск — в backend/README.

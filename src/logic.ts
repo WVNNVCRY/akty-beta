@@ -10,6 +10,7 @@ export const fmt = (n: number) =>
 export const coef = (mt?: MarkingType) => (mt ? mt.widthM * mt.fillRatio : 0);
 
 export function lineM2(data: Data, l: FormLine) {
+  if (l.m2 != null) return l.m2;
   const mt = data.markingTypes.find((m) => m.id === l.markingTypeId);
   return round2((l.linearM || 0) * coef(mt));
 }

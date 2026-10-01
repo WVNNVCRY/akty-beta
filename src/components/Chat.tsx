@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, Empty, Input, Space, Tag, Typography } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import { useData, useMe } from '../store';
-import { sendChat } from '../engine';
+import { actions } from '../actions';
 import { fmtDate, useAction } from './common';
 import { ROLE_LABEL } from '../types';
 
@@ -16,9 +16,10 @@ export default function Chat({ objectId }: { objectId: string }) {
   useEffect(() => {
     box.current?.scrollTo({ top: box.current.scrollHeight });
   }, [msgs.length]);
-  const send = () => {
-    act((d, uid) => sendChat(d, uid, objectId, text));
+  const send = async () => {
+    const t = text;
     setText('');
+    if (!(await act(() => actions.sendChat(objectId, t)))) setText(t);
   };
   return (
     <div>

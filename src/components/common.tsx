@@ -2,9 +2,9 @@ import { App as AntApp, Button, Space, Tag, Timeline, Typography } from 'antd';
 import { FilePdfOutlined, LockOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { Data, FileRef, HistoryEntry } from '../types';
-import { useData, useMe, useStore } from '../store';
+import { useData, useMe } from '../store';
 import { canDownloadFile } from '../logic';
-import { downloadBlob, getFile, makeDemoPdf } from '../files';
+import { downloadBlob, fetchFileBlob } from '../files';
 
 export const fmtDate = (s?: string | null) => (s ? dayjs(s).format('DD.MM.YYYY HH:mm') : '—');
 export const fmtDay = (s?: string | null) => (s ? dayjs(s).format('DD.MM.YYYY') : '—');
@@ -15,23 +15,22 @@ export const userName = (d: Data, id: string) =>
 /** Обёртка для действий: показывает ошибки бизнес-логики и сообщение об успехе. */
 export function useAction() {
   const { message } = AntApp.useApp();
-  const run = useStore((s) => s.run);
-  return <T,>(fn: (d: Data, userId: string) => T, success?: string | ((r: T) => string | undefined)) => {
+  /** Выполнить действие (демо — локально, API — на сервере). Возвращает true при успехе. */
+  return async <T,>(fn: () => T | Promise<T>, success?: string | ((r: T) => string | undefined)): Promise<boolean> => {
     try {
-      const r = run(fn);
+      const r = await fn();
       const msg = typeof success === 'function' ? success(r) : success;
       if (msg) message.success(msg, 4);
-      return r;
+      return true;
     } catch (e: any) {
       message.error(e?.message || String(e), 6);
-      return undefined;
+      return false;
     }
   };
 }
 
 export async function downloadFileRef(f: FileRef) {
-  const blob = (await getFile(f.id)) || makeDemoPdf(f.name);
-  await downloadBlob(blob, f.name);
+  await downloadBlob(await fetchFileBlob(f), f.name);
 }
 
 export function FileLink({ file, label }: { file?: FileRef | null; label?: string }) {
@@ -49,9 +48,9 @@ export function FileLink({ file, label }: { file?: FileRef | null; label?: strin
         icon={allowed ? <FilePdfOutlined /> : <LockOutlined />}
         disabled={!allowed}
         onClick={async () => {
-          // В проде: проверка прав на бэке → signed URL на 1 час
+          // В API-режиме права дополнительно проверяет сервер
           if (!allowed) return message.error('Нет доступа к файлу');
-          await downloadFileRef(file);
+          try { await downloadFileRef(file); } catch (e: any) { message.error(e?.message || 'Не удалось скачать файл'); }
         }}
         style={{ padding: 0 }}
       >

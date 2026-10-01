@@ -4,7 +4,11 @@
   "version": "0.1.0",
   "description": "Схема БД (Prisma + PostgreSQL) для системы согласования актов скрытых работ",
   "scripts": {
-    "db:up": "docker compose up -d",
+    "build": "tsc -p .",
+    "start": "node --env-file=.env dist/main.js",
+    "start:prod": "node dist/main.js",
+    "test:e2e": "tsx test/api.e2e.ts",
+    "db:up": "docker compose up -d postgres minio",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
@@ -16,12 +20,26 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.0"
+    "@aws-sdk/client-s3": "^3.1144.0",
+    "@nestjs/common": "^11.2.7",
+    "@nestjs/core": "^11.2.7",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/platform-express": "^11.2.7",
+    "@nestjs/schedule": "^6.1.3",
+    "@nestjs/serve-static": "^5.0.5",
+    "@prisma/client": "^6.19.3",
+    "jszip": "^3.10.2",
+    "multer": "^2.4.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "prisma": "^6.19.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^20.19.43",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
   }
 }
