@@ -1,0 +1,641 @@
+// =============================================================================
+//  Система согласования актов скрытых работ (дорожная разметка)
+//  Prisma schema · PostgreSQL
+//
+//  Основано на «Сводный документ 09.09.26» + решения, принятые в бета-прототипе:
+//   • порядок согласования: подрядчики → заказчик → генподрядчик (GC);
+//   • титул выполнения — один общий объём в м², без разбивки по видам;
+//   • подрядчик вводит погонные метры (пм) по видам разметки → система
+//     пересчитывает в м² по коэффициентам вида разметки (снимок коэффициентов
+//     сохраняется в строке, чтобы смена справочника не меняла старые акты);
+//   • сумма титулов выполнений ≤ общий объём объекта (проверка в сервисе);
+//   • изменение титула после одобрения — отдельная запись + журнал + уведомление;
+//   • уведомления с типом (action / important / reminder / info) и привязкой
+//     к объекту/выполнению/акту — для группировки на больших объёмах.
+//
+//  Все объёмы — Decimal (без ошибок округления float). Все id — UUID,
+//  excelRowNumber — отдельное @unique поле (п. 6 ТЗ).
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+//  Справочники и перечисления
+// -----------------------------------------------------------------------------
+
+enum UserRole {
+  GC // генподрядчик, администратор
+  MANAGER // всё как GC, кроме управления пользователями
+  CONTRACTOR // подрядчик (Механика / Ручка / Термопластик …)
+  CLIENT // заказчик
+}
+
+/// Статус формы подрядчика внутри выполнения.
+enum FormStatus {
+  DRAFT // черновик, подрядчик заполняет
+  WAITING_PARTNER // отправлена, но сумма по всем формам ≠ титулу
+  ON_CHECK_CLIENT // сумма сошлась, акт у заказчика
+  APPROVED_BY_CLIENT // заказчик одобрил форму
+  REJECTED_BY_CLIENT // заказчик отклонил форму (с комментарием)
+  REJECTED_BY_GC // GC вернул форму на доработку
+  TITLE_CHANGED // титул изменён — нужен пересчёт
+}
+
+enum ActStatus {
+  ON_CHECK_CLIENT // на проверке заказчика
+  IN_REVISION // на доработке у подрядчиков
+  ON_CHECK_GC // все формы одобрены заказчиком, финальная проверка GC
+  APPROVED // согласован, можно печатать Word
+  ARCHIVED // в архиве, редактирование запрещено (кроме GC через админку)
+}
+
+enum NotificationKind {
+  ACTION // требует действия
+  IMPORTANT // важное (изменение титула, отзыв формы после одобрения …)
+  REMINDER // напоминание 2/5 дней (для сотрудников — дайджест)
+  INFO // информационное
+}
+
+enum TelegramDelivery {
+  NONE // не отправлять (заказчик / нет привязки)
+  PENDING // в очереди BullMQ
+  SENT
+  FAILED
+}
+
+enum FileKind {
+  SCHEME // PDF-схема
+  PHOTO // PDF-фото
+  WORD_ACT // сгенерированный Word-акт
+  IMPORT_EXCEL // исходный файл импорта
+  CHAT // вложение в чат (на будущее)
+}
+
+enum ImportKind {
+  OBJECT_TITLE // импорт общего титула объектов
+  EXECUTION_TITLE // импорт титула под выполнение
+}
+
+enum ImportStatus {
+  PROCESSING
+  NEEDS_RESOLUTION // есть конфликты, ждём решения
+  DONE
+  FAILED
+}
+
+enum ImportRowStatus {
+  CREATED
+  UPDATED
+  IMPORT_CONFLICT // объект + выполнение уже есть
+  ERROR // строка не распознана
+  SKIPPED
+}
+
+enum ConflictResolution {
+  OVERWRITE
+  CREATE_NEW
+  SKIP
+}
+
+// -----------------------------------------------------------------------------
+//  Пользователи и организации
+// -----------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  login        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole
+  active       Boolean  @default(true)
+
+  /// Для CONTRACTOR — организация-подрядчик
+  contractorId String?     @db.Uuid
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+  /// Для CLIENT — организация-заказчик (видит/управляет только своими объектами)
+  clientId     String?     @db.Uuid
+  client       Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  /// Привязка Telegram (nullable). Заполняется через токен в личном кабинете.
+  telegramChatId    String?   @unique
+  telegramLinkedAt  DateTime?
+  /// JWT, выданные раньше этой даты, считаются недействительными.
+  passwordChangedAt DateTime  @default(now())
+  lastLoginAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  telegramTokens    TelegramLinkToken[]
+  notifications     Notification[]
+  chatMessages      ChatMessage[]
+  chatReads         ChatReadMark[]
+  history           HistoryEntry[]
+  titleChanges      TitleChange[]
+  uploadedFiles     StoredFile[]
+  imports           ImportLog[]
+  resolvedRows      ImportRow[]         @relation("ImportRowResolvedBy")
+  createdObjects    SiteObject[]        @relation("ObjectCreatedBy")
+  createdExecutions Execution[]         @relation("ExecutionCreatedBy")
+
+  @@index([role])
+  @@index([contractorId])
+  @@index([clientId])
+  @@map("users")
+}
+
+/// Одноразовый токен для привязки Telegram: пользователь отправляет его боту.
+model TelegramLinkToken {
+  token     String    @id
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("telegram_link_tokens")
+}
+
+model Contractor {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @unique
+  /// Механика / Ручка / Термопластик …
+  specialization String
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  users       User[]
+  assignments ExecutionContractor[]
+  forms       ContractorForm[]
+  actRows     ActRow[]
+  history     HistoryEntry[]        @relation("HistoryVisibleToContractor")
+
+  @@map("contractors")
+}
+
+model Client {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users   User[]
+  objects SiteObject[]
+
+  @@map("clients")
+}
+
+/// Вид разметки (ГОСТ Р 51256 / 52289). Площадь = пм × widthM × fillRatio.
+model MarkingType {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique // «1.1», «1.14.1» …
+  name      String
+  widthM    Decimal  @db.Decimal(6, 3) // ширина линии, м
+  fillRatio Decimal  @db.Decimal(5, 4) // доля заполнения (для прерывистых < 1)
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  formLines FormLine[]
+  actLines  ActRowLine[]
+
+  @@map("marking_types")
+}
+
+// -----------------------------------------------------------------------------
+//  Объекты и выполнения
+// -----------------------------------------------------------------------------
+
+model SiteObject {
+  id             String  @id @default(uuid()) @db.Uuid
+  /// № п/п из Excel — ключ поиска при импорте. NULL для объектов, созданных вручную.
+  excelRowNumber Int?    @unique
+  name           String
+  address        String
+  district       String // округ (ЦАО, САО …)
+  clientId       String  @db.Uuid
+  client         Client  @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  /// Общий объём объекта, м². Σ titleM2 выполнений ≤ titleM2 (проверка в сервисе).
+  titleM2        Decimal @db.Decimal(12, 3)
+
+  createdById String?  @db.Uuid
+  createdBy   User?    @relation("ObjectCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executions    Execution[]
+  acts          Act[]
+  chatMessages  ChatMessage[]
+  chatReads     ChatReadMark[]
+  notifications Notification[]
+  importRows    ImportRow[]
+
+  @@index([clientId])
+  @@index([district])
+  @@map("objects")
+}
+
+model Execution {
+  id         String     @id @default(uuid()) @db.Uuid
+  objectId   String     @db.Uuid
+  /// Удаление объекта каскадно удаляет выполнения. Сервис запрещает удаление,
+  /// если есть согласованный/архивный акт.
+  object     SiteObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  number     Int // № выполнения внутри объекта
+  name       String
+  periodFrom DateTime   @db.Date
+  periodTo   DateTime   @db.Date
+  /// Титульный объём выполнения, м² (один общий, без разбивки по видам).
+  titleM2    Decimal    @db.Decimal(12, 3)
+
+  /// Для напоминаний 2/5 дней: время последнего движения и уровень
+  /// уже отправленного напоминания (0 — нет, 1 — первое, 2 — второе).
+  lastActivityAt DateTime @default(now())
+  reminderLevel  Int      @default(0) @db.SmallInt
+
+  createdById String?  @db.Uuid
+  createdBy   User?    @relation("ExecutionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contractors   ExecutionContractor[]
+  forms         ContractorForm[]
+  act           Act?
+  titleChanges  TitleChange[]
+  history       HistoryEntry[]
+  notifications Notification[]
+  importRows    ImportRow[]
+
+  @@unique([objectId, number])
+  @@index([lastActivityAt])
+  @@map("executions")
+}
+
+/// Назначение подрядчика на выполнение.
+model ExecutionContractor {
+  executionId  String     @db.Uuid
+  execution    Execution  @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  contractorId String     @db.Uuid
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Restrict)
+  assignedAt   DateTime   @default(now())
+
+  @@id([executionId, contractorId])
+  @@index([contractorId])
+  @@map("execution_contractors")
+}
+
+/// Изменение титула выполнения. afterApproval = true → подсветка в UI,
+/// запись в журнал и уведомление IMPORTANT всем участникам.
+model TitleChange {
+  id            String    @id @default(uuid()) @db.Uuid
+  executionId   String    @db.Uuid
+  execution     Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  fromM2        Decimal   @db.Decimal(12, 3)
+  toM2          Decimal   @db.Decimal(12, 3)
+  reason        String
+  afterApproval Boolean   @default(false)
+  userId        String?   @db.Uuid
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+
+  @@index([executionId, createdAt])
+  @@map("title_changes")
+}
+
+// -----------------------------------------------------------------------------
+//  Формы подрядчиков
+// -----------------------------------------------------------------------------
+
+model ContractorForm {
+  id           String     @id @default(uuid()) @db.Uuid
+  executionId  String     @db.Uuid
+  execution    Execution  @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  contractorId String     @db.Uuid
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Restrict)
+  status       FormStatus @default(DRAFT)
+  /// Отправлена автоматически с нулями (другой подрядчик закрыл весь объём).
+  autoZero     Boolean    @default(false)
+  /// Кэш суммы строк, м² — для быстрых списков и проверки «сумма = титул».
+  totalM2      Decimal    @default(0) @db.Decimal(12, 3)
+
+  schemeFileId String?     @db.Uuid
+  schemeFile   StoredFile? @relation("FormScheme", fields: [schemeFileId], references: [id], onDelete: SetNull)
+  photoFileId  String?     @db.Uuid
+  photoFile    StoredFile? @relation("FormPhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
+
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lines   FormLine[]
+  history HistoryEntry[]
+
+  @@unique([executionId, contractorId])
+  @@index([contractorId, status])
+  @@index([status])
+  @@map("contractor_forms")
+}
+
+/// Строка формы: погонные метры по виду разметки + снимок коэффициентов.
+model FormLine {
+  id            String         @id @default(uuid()) @db.Uuid
+  formId        String         @db.Uuid
+  form          ContractorForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  markingTypeId String         @db.Uuid
+  markingType   MarkingType    @relation(fields: [markingTypeId], references: [id], onDelete: Restrict)
+  linearM       Decimal        @db.Decimal(12, 3) // пм — вводит подрядчик
+  widthM        Decimal        @db.Decimal(6, 3) // снимок MarkingType.widthM
+  fillRatio     Decimal        @db.Decimal(5, 4) // снимок MarkingType.fillRatio
+  areaM2        Decimal        @db.Decimal(12, 3) // = linearM × widthM × fillRatio
+
+  @@unique([formId, markingTypeId])
+  @@map("form_lines")
+}
+
+// -----------------------------------------------------------------------------
+//  Акты
+// -----------------------------------------------------------------------------
+
+model Act {
+  id          String     @id @default(uuid()) @db.Uuid
+  /// АСР-0001 … — номер из Settings.actCounter (инкремент в транзакции).
+  number      String     @unique
+  executionId String     @unique @db.Uuid // один акт на выполнение
+  execution   Execution  @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  /// Денормализация для фильтров/архива без join.
+  objectId    String     @db.Uuid
+  object      SiteObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  status      ActStatus  @default(ON_CHECK_CLIENT)
+  /// Раунд согласования: +1 при каждом возврате на доработку.
+  round       Int        @default(1)
+  totalM2     Decimal    @db.Decimal(12, 3)
+
+  /// Сгенерированный Word (docxtemplater) лежит в S3. Ссылку отдаём как
+  /// signed URL на 1 час, поэтому храним ссылку на файл, а не сам URL
+  /// (в ТЗ — Act.wordFileUrl).
+  wordFileId      String?     @unique @db.Uuid
+  wordFile        StoredFile? @relation("ActWord", fields: [wordFileId], references: [id], onDelete: SetNull)
+  wordGeneratedAt DateTime?
+
+  approvedAt DateTime?
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  rows          ActRow[]
+  history       HistoryEntry[]
+  notifications Notification[]
+
+  @@index([status])
+  @@index([objectId])
+  @@index([archivedAt])
+  @@map("acts")
+}
+
+/// Снимок формы подрядчика в акте (файлы копируются в акт — этап 3 ТЗ).
+model ActRow {
+  id           String     @id @default(uuid()) @db.Uuid
+  actId        String     @db.Uuid
+  act          Act        @relation(fields: [actId], references: [id], onDelete: Cascade)
+  contractorId String     @db.Uuid
+  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Restrict)
+  autoZero     Boolean    @default(false)
+  totalM2      Decimal    @db.Decimal(12, 3)
+
+  schemeFileId String?     @db.Uuid
+  schemeFile   StoredFile? @relation("ActRowScheme", fields: [schemeFileId], references: [id], onDelete: SetNull)
+  photoFileId  String?     @db.Uuid
+  photoFile    StoredFile? @relation("ActRowPhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
+
+  lines ActRowLine[]
+
+  @@unique([actId, contractorId])
+  @@map("act_rows")
+}
+
+model ActRowLine {
+  id            String      @id @default(uuid()) @db.Uuid
+  rowId         String      @db.Uuid
+  row           ActRow      @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  markingTypeId String      @db.Uuid
+  markingType   MarkingType @relation(fields: [markingTypeId], references: [id], onDelete: Restrict)
+  linearM       Decimal     @db.Decimal(12, 3)
+  widthM        Decimal     @db.Decimal(6, 3)
+  fillRatio     Decimal     @db.Decimal(5, 4)
+  areaM2        Decimal     @db.Decimal(12, 3)
+
+  @@unique([rowId, markingTypeId])
+  @@map("act_row_lines")
+}
+
+// -----------------------------------------------------------------------------
+//  Журнал (история) — единый для выполнения, формы и акта
+// -----------------------------------------------------------------------------
+
+model HistoryEntry {
+  id                    String      @id @default(uuid()) @db.Uuid
+  createdAt             DateTime    @default(now())
+  userId                String?     @db.Uuid // NULL — системное событие
+  user                  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Машинный код события: FORM_SUBMITTED, CLIENT_REJECTED, TITLE_CHANGED …
+  action                String
+  comment               String?
+  /// Комментарии GC к отклонениям заказчик не видит.
+  hiddenFromClient      Boolean     @default(false)
+  /// Если задано — комментарий видит только этот подрядчик (п. 2 ТЗ).
+  visibleToContractorId String?     @db.Uuid
+  visibleToContractor   Contractor? @relation("HistoryVisibleToContractor", fields: [visibleToContractorId], references: [id], onDelete: SetNull)
+  /// Важное событие — подсветка в UI (например, изменение титула после одобрения).
+  highlight             Boolean     @default(false)
+  /// Произвольные детали (было/стало, раунд …).
+  meta                  Json?
+
+  executionId String?         @db.Uuid
+  execution   Execution?      @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  formId      String?         @db.Uuid
+  form        ContractorForm? @relation(fields: [formId], references: [id], onDelete: Cascade)
+  actId       String?         @db.Uuid
+  act         Act?            @relation(fields: [actId], references: [id], onDelete: Cascade)
+
+  @@index([executionId, createdAt])
+  @@index([formId, createdAt])
+  @@index([actId, createdAt])
+  @@map("history_entries")
+}
+
+// -----------------------------------------------------------------------------
+//  Файлы (S3: MinIO на dev, Yandex Object Storage на prod)
+// -----------------------------------------------------------------------------
+
+model StoredFile {
+  id           String   @id @default(uuid()) @db.Uuid
+  kind         FileKind
+  bucket       String
+  key          String // путь в бакете
+  originalName String
+  mimeType     String
+  size         BigInt
+  sha256       String?
+  uploadedById String?  @db.Uuid
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  formSchemes   ContractorForm[] @relation("FormScheme")
+  formPhotos    ContractorForm[] @relation("FormPhoto")
+  actRowSchemes ActRow[]         @relation("ActRowScheme")
+  actRowPhotos  ActRow[]         @relation("ActRowPhoto")
+  actWord       Act?             @relation("ActWord")
+  imports       ImportLog[]
+
+  @@unique([bucket, key])
+  @@index([uploadedById])
+  @@map("stored_files")
+}
+
+// -----------------------------------------------------------------------------
+//  Чат по объекту
+// -----------------------------------------------------------------------------
+
+model ChatMessage {
+  id        String     @id @default(uuid()) @db.Uuid
+  objectId  String     @db.Uuid
+  object    SiteObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  userId    String?    @db.Uuid
+  user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  text      String
+  createdAt DateTime   @default(now())
+  editedAt  DateTime?
+
+  @@index([objectId, createdAt])
+  @@map("chat_messages")
+}
+
+/// Отметка «прочитано до» — для счётчиков непрочитанных в чатах.
+model ChatReadMark {
+  userId     String     @db.Uuid
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  objectId   String     @db.Uuid
+  object     SiteObject @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime
+
+  @@id([userId, objectId])
+  @@map("chat_read_marks")
+}
+
+// -----------------------------------------------------------------------------
+//  Уведомления (в системе + Telegram)
+// -----------------------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      NotificationKind
+  text      String
+  link      String? // маршрут во фронтенде
+  readAt    DateTime? // NULL — не прочитано
+  createdAt DateTime         @default(now())
+
+  /// Привязки для группировки (по объекту / дню / типу) и перехода.
+  objectId    String?     @db.Uuid
+  object      SiteObject? @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  executionId String?     @db.Uuid
+  execution   Execution?  @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  actId       String?     @db.Uuid
+  act         Act?        @relation(fields: [actId], references: [id], onDelete: Cascade)
+
+  /// Ключ дедупликации: напоминания и дайджесты не дублируются
+  /// (например «reminder:2:<executionId>» или «digest:2026-10-01»).
+  dedupeKey String?
+
+  telegram       TelegramDelivery @default(NONE)
+  telegramSentAt DateTime?
+  telegramError  String?
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@index([userId, kind, createdAt(sort: Desc)])
+  @@index([userId, objectId])
+  @@index([telegram])
+  @@map("notifications")
+}
+
+// -----------------------------------------------------------------------------
+//  Импорт Excel (этап 4)
+// -----------------------------------------------------------------------------
+
+model ImportLog {
+  id           String       @id @default(uuid()) @db.Uuid
+  kind         ImportKind
+  status       ImportStatus @default(PROCESSING)
+  fileName     String
+  fileId       String?      @db.Uuid
+  file         StoredFile?  @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  uploadedById String?      @db.Uuid
+  uploadedBy   User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  rowsTotal    Int          @default(0)
+  rowsCreated  Int          @default(0)
+  rowsUpdated  Int          @default(0)
+  rowsConflict Int          @default(0)
+  rowsError    Int          @default(0)
+  rowsSkipped  Int          @default(0)
+  startedAt    DateTime     @default(now())
+  finishedAt   DateTime?
+
+  rows ImportRow[]
+
+  @@index([startedAt(sort: Desc)])
+  @@map("import_logs")
+}
+
+model ImportRow {
+  id           String              @id @default(uuid()) @db.Uuid
+  importId     String              @db.Uuid
+  import       ImportLog           @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rowNumber    Int // номер строки в файле
+  status       ImportRowStatus
+  errorCode    String? // для ERROR
+  errorMessage String?
+  rawData      Json // сырые данные строки
+  objectId     String?             @db.Uuid
+  object       SiteObject?         @relation(fields: [objectId], references: [id], onDelete: SetNull)
+  executionId  String?             @db.Uuid
+  execution    Execution?          @relation(fields: [executionId], references: [id], onDelete: SetNull)
+  /// Решение по IMPORT_CONFLICT: перезаписать / создать новый / пропустить.
+  resolution   ConflictResolution?
+  resolvedById String?             @db.Uuid
+  resolvedBy   User?               @relation("ImportRowResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedAt   DateTime?
+
+  @@unique([importId, rowNumber])
+  @@index([importId, status])
+  @@map("import_rows")
+}
+
+// -----------------------------------------------------------------------------
+//  Настройки системы (одна строка, id = 1)
+// -----------------------------------------------------------------------------
+
+model Settings {
+  id               Int      @id @default(1)
+  remindFirstDays  Int      @default(2)
+  remindSecondDays Int      @default(5)
+  /// Допуск расхождения суммы форм с титулом, м²
+  toleranceM2      Decimal  @default(0) @db.Decimal(10, 3)
+  /// Счётчик номеров актов (АСР-0001 …)
+  actCounter       Int      @default(0)
+  updatedAt        DateTime @updatedAt
+
+  @@map("settings")
+}
