@@ -138,7 +138,7 @@ export function submitForm(d: Data, userId: string, formId: string): string {
   form.history.push(h(d, userId, `Форма подана: ${fmt(formTotalM2(d, form))} м²`));
   touch(d, ex);
   if (advance(d, ex, userId)) {
-    return 'Объёмы сошлись с титулом — формы отправлены заказчику.';
+    return 'Сумма объёмов равна титулу — формы направлены заказчику.';
   }
   const partners = ex.contractorIds.filter((c) => c !== form.contractorId);
   notify(d, contractorUserIds(d, partners),
@@ -175,21 +175,21 @@ function advance(d: Data, ex: Execution, userId: string): boolean {
       highlight: true,
     }));
     notify(d, contractorUserIds(d, [cid]),
-      `Весь объём по ${label} выбран другим подрядчиком — ваша форма отправлена автоматически с нулями`, link, { kind: 'important', ex });
+      `Весь объём по ${label} выбран другим подрядчиком — ваша форма отправлена автоматически с нулевым объёмом`, link, { kind: 'important', ex });
   });
 
   d.forms.filter((x) => x.executionId === ex.id && x.status === 'WAITING_PARTNER').forEach((x) => {
     x.status = 'ON_CHECK_CLIENT';
-    x.history.push(h(d, 'system', 'Объёмы сошлись с титулом — форма направлена заказчику'));
+    x.history.push(h(d, 'system', 'Сумма объёмов равна титулу — форма направлена заказчику'));
   });
 
   let act = actOf(d, ex.id);
   if (!act) {
     d.actCounter += 1;
     act = {
-      id: uid(), number: `АСР-${String(d.actCounter).padStart(4, '0')}`, executionId: ex.id, objectId: obj.id,
+      id: uid(), number: `АОСР-${String(d.actCounter).padStart(4, '0')}`, executionId: ex.id, objectId: obj.id,
       status: 'ON_CHECK_CLIENT', round: 1, createdAt: nowIso(d), updatedAt: nowIso(d), rows: [],
-      history: [h(d, 'system', 'Объёмы сошлись с титулом — акт создан и направлен заказчику')],
+      history: [h(d, 'system', 'Сумма объёмов равна титулу — акт сформирован и направлен заказчику')],
     };
     d.acts.push(act);
   } else if (act.status === 'IN_REVISION') {
@@ -222,8 +222,8 @@ export function withdrawForm(d: Data, userId: string, formId: string) {
   d.forms.filter((x) => x.executionId === ex.id && x.autoZero && COUNTED.includes(x.status)).forEach((x) => {
     x.status = 'DRAFT';
     x.autoZero = false;
-    x.history.push(h(d, 'system', `Автоформа с нулями сброшена: ${name} отозвал свою форму`));
-    notify(d, contractorUserIds(d, [x.contractorId]), `${name} отозвал форму (${label}) — ваша автоформа с нулями сброшена, объём снова открыт`, link, { kind: 'action', ex });
+    x.history.push(h(d, 'system', `Автоматическая форма с нулевым объёмом сброшена: ${name} отозвал свою форму`));
+    notify(d, contractorUserIds(d, [x.contractorId]), `${name} отозвал форму (${label}) — ваша автоматическая форма с нулевым объёмом сброшена, объём снова открыт`, link, { kind: 'action', ex });
   });
   actToRevision(d, ex.id, userId, `${name} отозвал форму — акт на доработке`);
   touch(d, ex);
@@ -286,7 +286,7 @@ function getAct(d: Data, actId: string) {
 }
 
 export function gcApproveAct(d: Data, userId: string, actId: string) {
-  if (!isStaff(actor(d, userId).role)) fail('Нет прав');
+  if (!isStaff(actor(d, userId).role)) fail('Недостаточно прав для этого действия');
   const act = getAct(d, actId);
   if (act.status !== 'ON_CHECK_GC') fail('Акт не на проверке ГП');
   const { ex, obj, label } = exCtx(d, act.executionId);
@@ -297,7 +297,7 @@ export function gcApproveAct(d: Data, userId: string, actId: string) {
 
 /** ГП возвращает акт: выбранные формы уходят подрядчикам, после исправления — снова к заказчику. */
 export function gcReturnAct(d: Data, userId: string, actId: string, contractorIds: string[], comment: string) {
-  if (!isStaff(actor(d, userId).role)) fail('Нет прав');
+  if (!isStaff(actor(d, userId).role)) fail('Недостаточно прав для этого действия');
   if (!comment.trim()) fail('Укажите комментарий');
   if (!contractorIds.length) fail('Выберите хотя бы одного подрядчика');
   const act = getAct(d, actId);
@@ -319,7 +319,7 @@ export function gcReturnAct(d: Data, userId: string, actId: string, contractorId
 
 export function downloadWordLog(d: Data, userId: string, actId: string) {
   const u = actor(d, userId);
-  if (!(isStaff(u.role) || u.role === 'CLIENT')) fail('Нет прав');
+  if (!(isStaff(u.role) || u.role === 'CLIENT')) fail('Недостаточно прав для этого действия');
   const act = getAct(d, actId);
   if (!['APPROVED', 'ARCHIVED'].includes(act.status)) fail('Word доступен только для согласованного акта');
   act.wordDownloadedAt = nowIso(d);
@@ -327,7 +327,7 @@ export function downloadWordLog(d: Data, userId: string, actId: string) {
 }
 
 export function archiveAct(d: Data, userId: string, actId: string) {
-  if (!isStaff(actor(d, userId).role)) fail('Нет прав');
+  if (!isStaff(actor(d, userId).role)) fail('Недостаточно прав для этого действия');
   const act = getAct(d, actId);
   if (act.status !== 'APPROVED') fail('В архив можно перевести только согласованный акт');
   act.archivedAt = nowIso(d);
@@ -349,7 +349,7 @@ export function correctAct(d: Data, userId: string, actId: string, rows: { contr
       const oldV = old?.linearM || 0;
       if (round2(oldV) !== round2(l.linearM)) {
         const mt = d.markingTypes.find((m) => m.id === l.markingTypeId);
-        changes.push(`${contractorName(d, r.contractorId)}, ${mt?.code}: ${fmt(oldV)} → ${fmt(l.linearM)} п.м`);
+        changes.push(`${contractorName(d, r.contractorId)}, ${mt?.code}: ${fmt(oldV)} → ${fmt(l.linearM)} пог. м`);
         if (old) old.linearM = round2(l.linearM);
         else row.lines.push({ markingTypeId: l.markingTypeId, linearM: round2(l.linearM) });
       }
@@ -537,16 +537,16 @@ export function checkReminders(d: Data) {
     const short = shortage(executionBalance(d, ex));
     if (idleDays >= d2 && ex.reminderLevel < 2) {
       ex.reminderLevel = 2;
-      notify(d, contractorUserIds(d, ex.contractorIds), `Акт висит ${d2} дн., требуется вмешательство: ${label}`, link, { kind: 'reminder', ex });
+      notify(d, contractorUserIds(d, ex.contractorIds), `Выполнение без движения ${d2} дн., требуется вмешательство: ${label}`, link, { kind: 'reminder', ex });
       staleForStaff.push(label);
     } else if (idleDays >= d1 && ex.reminderLevel < 1) {
       ex.reminderLevel = 1;
-      if (short > 0) notify(d, contractorUserIds(d, ex.contractorIds), `Акт висит ${d1} дн., недостача: ${fmt(short)} м² (${label})`, link, { kind: 'reminder', ex });
+      if (short > 0) notify(d, contractorUserIds(d, ex.contractorIds), `Выполнение без движения ${d1} дн., недостача объёма ${fmt(short)} м²: ${label}`, link, { kind: 'reminder', ex });
     }
   });
   if (staleForStaff.length) {
     const list = staleForStaff.slice(0, 5).join('; ') + (staleForStaff.length > 5 ? ` и ещё ${staleForStaff.length - 5}` : '');
-    notify(d, staffIds(d), `Сводка: ${staleForStaff.length} выполн. без решения ≥ ${d2} дн. — ${list}`, '/objects', { kind: 'reminder' });
+    notify(d, staffIds(d), `Сводка: выполнений без движения ${d2} дн. и более — ${staleForStaff.length}: ${list}`, '/objects', { kind: 'reminder' });
   }
 }
 

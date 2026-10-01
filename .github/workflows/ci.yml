@@ -45,7 +45,7 @@ jobs:
       - name: API e2e (43 проверки)
         working-directory: backend
         run: |
-          npx tsx prisma/seed.ts
+          SEED_DEMO_OBJECTS=1 npx tsx prisma/seed.ts
           node dist/main.js > server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:3000/api/health && break; sleep 1; done
           npx tsx test/api.e2e.ts
@@ -55,7 +55,7 @@ jobs:
         run: |
           pip install -q playwright
           python -m playwright install --with-deps chromium > /dev/null
-          npx tsx prisma/seed.ts
+          SEED_DEMO_OBJECTS=1 npx tsx prisma/seed.ts
           python test/ui-api.py
 
       - name: Лог сервера

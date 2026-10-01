@@ -10,7 +10,7 @@ const DEMO_LOGINS: { login: string; name: string; role: Role }[] = [
   { login: 'gc', name: 'Иванов И. И. (ГП)', role: 'GC' },
   { login: 'manager', name: 'Петрова А. С. (менеджер)', role: 'MANAGER' },
   { login: 'mech', name: 'Кузнецов Д. (Механика-Дор)', role: 'CONTRACTOR' },
-  { login: 'hand', name: 'Соколов В. (Ручка)', role: 'CONTRACTOR' },
+  { login: 'hand', name: 'Соколов В. (ИП Соколов)', role: 'CONTRACTOR' },
   { login: 'thermo', name: 'Орлов П. (ТермоЛиния)', role: 'CONTRACTOR' },
   { login: 'client', name: 'Смирнова Е. (ГБУ АД ЦАО)', role: 'CLIENT' },
   { login: 'client2', name: 'Волков Н. (ГБУ АД САО)', role: 'CLIENT' },
@@ -24,10 +24,11 @@ export default function Login() {
   const { message } = AntApp.useApp();
   const [loading, setLoading] = useState(false);
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#e6f4ff,#f5f7fa)' }}>
-      <Card style={{ width: 440 }}>
-        <Typography.Title level={4} style={{ marginTop: 0 }}>Согласование актов скрытых работ</Typography.Title>
-        <Typography.Paragraph type="secondary">Вход по логину и паролю, которые выдаёт генподрядчик. Регистрации нет.</Typography.Paragraph>
+    <div className="login-page">
+      <Card style={{ width: '100%', maxWidth: 440 }} styles={{ body: { padding: '28px 28px 24px' } }}>
+        <div className="app-brand-title" style={{ marginBottom: 14, fontSize: 13, color: '#5f6b78', fontWeight: 500 }}><span className="app-brand-mark" />Дорожная разметка · бета</div>
+        <Typography.Title level={4} style={{ marginTop: 0, marginBottom: 8, lineHeight: 1.3 }}>Согласование актов освидетельствования скрытых работ</Typography.Title>
+        <Typography.Paragraph type="secondary">Вход по логину и паролю, которые выдаёт генподрядчик. Самостоятельная регистрация не предусмотрена.</Typography.Paragraph>
         <Form layout="vertical" onFinish={async (v) => {
           setLoading(true);
           try {
@@ -45,18 +46,18 @@ export default function Login() {
           </Form.Item>
           <Button type="primary" htmlType="submit" block loading={loading}>Войти</Button>
         </Form>
-        {SHOW_DEMO && <Divider plain style={{ fontSize: 12 }}>Быстрый вход (демо, пароль у всех — 123)</Divider>}
-        {SHOW_DEMO && <Space direction="vertical" style={{ width: '100%' }}>
+        {SHOW_DEMO && <Divider plain style={{ fontSize: 12, color: '#5f6b78' }}>Быстрый вход для тестирования (пароль — 123)</Divider>}
+        {SHOW_DEMO && <Space direction="vertical" size={6} style={{ width: '100%' }}>
           {(API_MODE ? DEMO_LOGINS.map((u) => ({ ...u, id: u.login })) : users.filter((u) => u.active)).map((u) => (
-            <Button key={u.id} block disabled={loading} style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}
+            <Button key={u.id} block disabled={loading} style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 'auto', minHeight: 36, whiteSpace: 'normal', gap: 8 }}
               onClick={async () => {
                 if (!API_MODE) return loginAs(u.id);
                 setLoading(true);
                 try { await login(u.login, '123'); } catch (e: any) { message.error(e?.message || 'Ошибка входа'); }
                 setLoading(false);
               }}>
-              <span>{u.name} <Typography.Text type="secondary">({u.login})</Typography.Text></span>
-              <Tag>{ROLE_LABEL[u.role]}</Tag>
+              <span style={{ minWidth: 0 }}>{u.name} <Typography.Text type="secondary">({u.login})</Typography.Text></span>
+              <Tag style={{ marginInlineEnd: 0, flexShrink: 0 }}>{ROLE_LABEL[u.role]}</Tag>
             </Button>
           ))}
         </Space>}

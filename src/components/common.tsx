@@ -1,5 +1,6 @@
 import { App as AntApp, Button, Space, Tag, Timeline, Typography } from 'antd';
-import { FilePdfOutlined, LockOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, FilePdfOutlined, LockOutlined } from '@ant-design/icons';
+import type React from 'react';
 import dayjs from 'dayjs';
 import type { Data, FileRef, HistoryEntry } from '../types';
 import { useData, useMe } from '../store';
@@ -108,3 +109,14 @@ export function History({ items, maxHeight = 420 }: { items: (HistoryEntry & { s
 }
 
 export const StatusTag = ({ s }: { s: { label: string; color: string } }) => <Tag color={s.color}>{s.label}</Tag>;
+
+/** Заголовок карточки-страницы: «назад», текст одним блоком (без лишних пробелов), теги статуса. */
+export function PageTitle({ onBack, children, tags }: { onBack?: () => void; children: React.ReactNode; tags?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+      {onBack && <Button type="text" icon={<ArrowLeftOutlined />} onClick={onBack} aria-label="Назад" style={{ marginInlineStart: -8 }} />}
+      <span style={{ minWidth: 0 }}>{children}</span>
+      {tags && <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>{tags}</span>}
+    </div>
+  );
+}

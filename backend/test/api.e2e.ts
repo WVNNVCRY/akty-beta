@@ -148,10 +148,10 @@ async function main() {
   });
   await step('Ручка подаёт 100 м² → акт создан и ушёл заказчику', async () => {
     const r = await ok(call(T.hand, 'POST', `/executions/${exId}/form`, { lines: [{ markingTypeId: mt['1.14.1'], linearM: 250 }], schemeFileId: hScheme.id, photoFileId: hPhoto.id, submit: true }));
-    assert.match(r.message, /сошлись/);
+    assert.match(r.message, /равна титулу/);
     const a = await actOf('gc');
     assert.equal(a.status, 'ON_CHECK_CLIENT');
-    assert.match(a.number, /^АСР-\d{4}$/);
+    assert.match(a.number, /^АОСР-\d{4}$/);
     const n = (await S('client')).notifications.find((x: any) => x.text.includes(a.number) && x.kind === 'action');
     assert.ok(n, 'заказчик получил уведомление «Требует действия»');
   });

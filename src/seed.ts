@@ -5,7 +5,8 @@ import {
   submitForm, uid,
 } from './engine';
 
-export function buildSeed(): Data {
+/** Начальные данные демо-режима. withObjects=true — набор примеров объектов (для ручных проверок/разработки). */
+export function buildSeed(withObjects = false): Data {
   const iso = new Date().toISOString();
   const d: Data = {
     users: [], contractors: [], clients: [], markingTypes: [], objects: [], executions: [], forms: [],
@@ -36,9 +37,9 @@ export function buildSeed(): Data {
     d.contractors.push(x);
     return x.id;
   };
-  const MECH = c('ООО «Механика-Дор»', 'Механика');
-  const HAND = c('ИП Соколов (ручная разметка)', 'Ручка');
-  const THERMO = c('ООО «ТермоЛиния»', 'Механика');
+  const MECH = c('ООО «Механика-Дор»', 'Машинная разметка');
+  const HAND = c('ИП Соколов (ручная разметка)', 'Ручная разметка');
+  const THERMO = c('ООО «ТермоЛиния»', 'Машинная разметка');
 
   const cl = (name: string) => {
     const x = { id: uid(), name };
@@ -46,7 +47,7 @@ export function buildSeed(): Data {
     return x.id;
   };
   const CL1 = cl('ГБУ «Автомобильные дороги ЦАО»');
-  const CL2 = cl('ГБУ «Автодороги САО»');
+  const CL2 = cl('ГБУ «Автомобильные дороги САО»');
 
   const user = (login: string, name: string, role: any, extra: any = {}) => {
     const u = { id: uid(), login, password: '123', name, role, passwordChangedAt: iso, active: true, telegramChatId: null, ...extra };
@@ -57,11 +58,14 @@ export function buildSeed(): Data {
     gc: user('gc', 'Иванов И. И. (ГП)', 'GC', { telegramChatId: '100001' }),
     manager: user('manager', 'Петрова А. С. (менеджер)', 'MANAGER'),
     mech: user('mech', 'Кузнецов Д. (Механика-Дор)', 'CONTRACTOR', { contractorId: MECH, telegramChatId: '100002' }),
-    hand: user('hand', 'Соколов В. (Ручка)', 'CONTRACTOR', { contractorId: HAND }),
+    hand: user('hand', 'Соколов В. (ИП Соколов)', 'CONTRACTOR', { contractorId: HAND }),
     thermo: user('thermo', 'Орлов П. (ТермоЛиния)', 'CONTRACTOR', { contractorId: THERMO }),
     client: user('client', 'Смирнова Е. (ГБУ АД ЦАО)', 'CLIENT', { clientId: CL1 }),
     client2: user('client2', 'Волков Н. (ГБУ АД САО)', 'CLIENT', { clientId: CL2 }),
   };
+
+  // Пустой старт: справочники, организации и пользователи без объектов
+  if (!withObjects) return d;
 
   // --- Объекты и выполнения ---
   const obj = (n: number, name: string, address: string, district: string, clientId: string, titleM2: number) => {

@@ -30,7 +30,7 @@ export function ActsTable({ acts, compact }: { acts: Act[]; compact?: boolean })
           },
         },
         ...(compact ? [] : [{ title: 'Заказчик', render: (_: any, a: Act) => data.clients.find((c) => c.id === data.objects.find((o) => o.id === a.objectId)?.clientId)?.name }]),
-        { title: 'Объём, м²', align: 'right', render: (_, a) => fmt(actTotal(data, a)) },
+        { title: 'Объём, м²', align: 'right', render: (_, a) => fmt(actTotal(data, a)) },
         { title: 'Статус', render: (_, a) => <Tag color={ACT_STATUS[a.status].color}>{ACT_STATUS[a.status].label}</Tag> },
         ...(compact ? [] : [{ title: 'Обновлён', render: (_: any, a: Act) => fmtDate(a.updatedAt), width: 150 }]),
       ]}

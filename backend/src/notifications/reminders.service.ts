@@ -39,7 +39,7 @@ export class RemindersService {
         const users = await this.notifier.contractorUserIds(tx, contractorIdsOf(ex));
         if (idle >= d2 && ex.reminderLevel < 2) {
           await tx.execution.update({ where: { id: ex.id }, data: { reminderLevel: 2 } });
-          await this.notifier.notify(tx, users, `Акт висит ${d2} дн., требуется вмешательство: ${label}`, link,
+          await this.notifier.notify(tx, users, `Выполнение без движения ${d2} дн., требуется вмешательство: ${label}`, link,
             { kind: 'REMINDER', ...rel, dedupeKey: `r2:${ex.id}:${ex.lastActivityAt.toISOString()}` });
           stale.push(label);
           second++;
@@ -47,7 +47,7 @@ export class RemindersService {
           await tx.execution.update({ where: { id: ex.id }, data: { reminderLevel: 1 } });
           const short = shortage(balance(ex));
           if (short > 0) {
-            await this.notifier.notify(tx, users, `Акт висит ${d1} дн., недостача: ${fmt(short)} м² (${label})`, link,
+            await this.notifier.notify(tx, users, `Выполнение без движения ${d1} дн., недостача объёма ${fmt(short)} м²: ${label}`, link,
               { kind: 'REMINDER', ...rel, dedupeKey: `r1:${ex.id}:${ex.lastActivityAt.toISOString()}` });
           }
           first++;
@@ -55,7 +55,7 @@ export class RemindersService {
       }
       if (stale.length) {
         const text = stale.slice(0, 5).join('; ') + (stale.length > 5 ? ` и ещё ${stale.length - 5}` : '');
-        await this.notifier.notify(tx, await this.notifier.staffIds(tx), `Сводка: ${stale.length} выполн. без решения ≥ ${d2} дн. — ${text}`, '/objects', { kind: 'REMINDER' });
+        await this.notifier.notify(tx, await this.notifier.staffIds(tx), `Сводка: выполнений без движения ${d2} дн. и более — ${stale.length}: ${text}`, '/objects', { kind: 'REMINDER' });
       }
     }, { timeout: 60_000 });
     return { first, second };

@@ -1,7 +1,7 @@
 export type Role = 'GC' | 'MANAGER' | 'CONTRACTOR' | 'CLIENT';
 
 export const ROLE_LABEL: Record<Role, string> = {
-  GC: 'Генподрядчик (админ)',
+  GC: 'Генподрядчик',
   MANAGER: 'Менеджер',
   CONTRACTOR: 'Подрядчик',
   CLIENT: 'Заказчик',
@@ -90,7 +90,7 @@ export const FORM_STATUS: Record<FormStatus, { label: string; color: string }> =
   APPROVED_BY_CLIENT: { label: 'Одобрена заказчиком', color: 'green' },
   REJECTED_BY_CLIENT: { label: 'Отклонена заказчиком', color: 'red' },
   REJECTED_BY_GC: { label: 'Возвращена ГП', color: 'volcano' },
-  TITLE_CHANGED: { label: 'Изменён титул — нужен пересчёт', color: 'magenta' },
+  TITLE_CHANGED: { label: 'Изменён титул, требуется пересчёт', color: 'magenta' },
 };
 
 /** Как статус формы видит заказчик (внутренние статусы скрыты). */
@@ -98,7 +98,7 @@ export function clientFormStatus(s: FormStatus): { label: string; color: string 
   if (s === 'ON_CHECK_CLIENT') return { label: 'Ждёт вашего решения', color: 'blue' };
   if (s === 'APPROVED_BY_CLIENT') return { label: 'Одобрена вами', color: 'green' };
   if (s === 'REJECTED_BY_CLIENT') return { label: 'Отклонена вами', color: 'red' };
-  if (s === 'TITLE_CHANGED') return { label: 'Изменён титул — пересчёт', color: 'magenta' };
+  if (s === 'TITLE_CHANGED') return { label: 'Изменён титул, требуется пересчёт', color: 'magenta' };
   return { label: 'На доработке у подрядчика', color: 'orange' };
 }
 
@@ -134,7 +134,7 @@ export interface ContractorForm {
   schemeFile?: FileRef | null;
   photoFile?: FileRef | null;
   status: FormStatus;
-  autoZero?: boolean; // отправлена автоматически с нулями
+  autoZero?: boolean; // отправлена автоматически с нулевым объёмом
   updatedAt: string;
   history: HistoryEntry[];
 }
@@ -186,7 +186,7 @@ export const NOTIFICATION_KIND: Record<NotificationKind, { label: string; color:
   action: { label: 'Требует действия', color: 'blue' },
   important: { label: 'Важное', color: 'magenta' },
   reminder: { label: 'Напоминание', color: 'orange' },
-  info: { label: 'Инфо', color: 'default' },
+  info: { label: 'Информация', color: 'default' },
 };
 
 export interface Notification {

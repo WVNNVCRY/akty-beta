@@ -67,11 +67,11 @@ async function main() {
   }
 
   // --- Организации ---
-  const MECH = await prisma.contractor.create({ data: { name: 'ООО «Механика-Дор»', specialization: 'Механика' } });
-  const HAND = await prisma.contractor.create({ data: { name: 'ИП Соколов (ручная разметка)', specialization: 'Ручка' } });
-  const THERMO = await prisma.contractor.create({ data: { name: 'ООО «ТермоЛиния»', specialization: 'Механика' } });
+  const MECH = await prisma.contractor.create({ data: { name: 'ООО «Механика-Дор»', specialization: 'Машинная разметка' } });
+  const HAND = await prisma.contractor.create({ data: { name: 'ИП Соколов (ручная разметка)', specialization: 'Ручная разметка' } });
+  const THERMO = await prisma.contractor.create({ data: { name: 'ООО «ТермоЛиния»', specialization: 'Машинная разметка' } });
   const CL1 = await prisma.client.create({ data: { name: 'ГБУ «Автомобильные дороги ЦАО»' } });
-  const CL2 = await prisma.client.create({ data: { name: 'ГБУ «Автодороги САО»' } });
+  const CL2 = await prisma.client.create({ data: { name: 'ГБУ «Автомобильные дороги САО»' } });
 
   // --- Пользователи ---
   const pwd = hashPassword('123');
@@ -81,12 +81,24 @@ async function main() {
     gc: await user('gc', 'Иванов И. И. (ГП)', 'GC', { telegramChatId: '100001', telegramLinkedAt: new Date() }),
     manager: await user('manager', 'Петрова А. С. (менеджер)', 'MANAGER'),
     mech: await user('mech', 'Кузнецов Д. (Механика-Дор)', 'CONTRACTOR', { contractorId: MECH.id, telegramChatId: '100002', telegramLinkedAt: new Date() }),
-    hand: await user('hand', 'Соколов В. (Ручка)', 'CONTRACTOR', { contractorId: HAND.id }),
+    hand: await user('hand', 'Соколов В. (ИП Соколов)', 'CONTRACTOR', { contractorId: HAND.id }),
     thermo: await user('thermo', 'Орлов П. (ТермоЛиния)', 'CONTRACTOR', { contractorId: THERMO.id }),
     client: await user('client', 'Смирнова Е. (ГБУ АД ЦАО)', 'CLIENT', { clientId: CL1.id }),
     client2: await user('client2', 'Волков Н. (ГБУ АД САО)', 'CLIENT', { clientId: CL2.id }),
   };
   const userOfContractor: Record<string, string> = { [MECH.id]: U.mech.id, [HAND.id]: U.hand.id, [THERMO.id]: U.thermo.id };
+
+  const report = async () => {
+    const counts = {
+      users: await prisma.user.count(), objects: await prisma.siteObject.count(), executions: await prisma.execution.count(),
+      forms: await prisma.contractorForm.count(), acts: await prisma.act.count(), notifications: await prisma.notification.count(),
+    };
+    console.log('Seed OK:', counts);
+  };
+
+  // Демо-объекты (выполнения, формы, акты, уведомления) — только для автотестов: SEED_DEMO_OBJECTS=1.
+  // По умолчанию — пустой старт: справочники, организации и пользователи.
+  if (process.env.SEED_DEMO_OBJECTS !== '1') return report();
 
   // --- Хелперы ---
   const obj = (n: number, name: string, address: string, district: string, clientId: string, titleM2: number, ago: number) =>
@@ -101,7 +113,7 @@ async function main() {
         periodFrom: new Date(from), periodTo: new Date(to),
         createdById: U.gc.id, createdAt: daysAgo(ago), lastActivityAt: daysAgo(ago),
         contractors: { create: contractorIds.map((contractorId) => ({ contractorId })) },
-        history: { create: { userId: U.gc.id, action: 'EXECUTION_CREATED', comment: `Объём ${titleM2} м²`, createdAt: daysAgo(ago) } },
+        history: { create: { userId: U.gc.id, action: `Выполнение создано, объём ${titleM2} м²`, createdAt: daysAgo(ago) } },
       },
     });
 
@@ -142,7 +154,7 @@ async function main() {
     actCounter += 1;
     return prisma.act.create({
       data: {
-        number: `АСР-${String(actCounter).padStart(4, '0')}`, executionId, objectId, status,
+        number: `АОСР-${String(actCounter).padStart(4, '0')}`, executionId, objectId, status,
         totalM2: forms.reduce((s, f) => s.add(f.totalM2), D(0)), createdAt: daysAgo(ago), ...extra,
         rows: {
           create: forms.map((f) => ({
@@ -151,7 +163,7 @@ async function main() {
             lines: { create: f.lines.map(({ markingTypeId, linearM, widthM, fillRatio, areaM2 }) => ({ markingTypeId, linearM, widthM, fillRatio, areaM2 })) },
           })),
         },
-        history: { create: { action: 'ACT_CREATED', comment: 'Сумма форм совпала с титулом, акт направлен заказчику', createdAt: daysAgo(ago) } },
+        history: { create: { action: 'Сумма объёмов равна титулу — акт сформирован и направлен заказчику', createdAt: daysAgo(ago) } },
       },
     });
   };
@@ -207,7 +219,7 @@ async function main() {
   const a5b = await act(e5b.id, o5.id, 'IN_REVISION', 5, { round: 1 });
   await prisma.historyEntry.create({
     data: {
-      formId: f5h.id, actId: a5b.id, userId: U.client.id, action: 'CLIENT_REJECTED', createdAt: daysAgo(2),
+      formId: f5h.id, actId: a5b.id, userId: U.client.id, action: 'Отклонена заказчиком', createdAt: daysAgo(2),
       comment: 'На фото по 1.7 не видно привязки к перекрёстку, переснимите с ориентиром.',
       visibleToContractorId: HAND.id,
     },
@@ -240,7 +252,7 @@ async function main() {
   await form(e8.id, HAND.id, { '1.14.1': 200 }, 'TITLE_CHANGED', 3);
   const reason = 'Уточнён титульный список: добавлен участок у д. 45 (+30 м²)';
   await prisma.titleChange.create({ data: { executionId: e8.id, fromM2: D(250), toM2: D(280), reason, duringApproval: true, userId: U.gc.id, createdAt: daysAgo(3) } });
-  await prisma.historyEntry.create({ data: { executionId: e8.id, userId: U.gc.id, action: 'TITLE_CHANGED', comment: `250 → 280 м². ${reason}`, highlight: true, meta: { from: 250, to: 280 }, createdAt: daysAgo(3) } });
+  await prisma.historyEntry.create({ data: { executionId: e8.id, userId: U.gc.id, action: 'Изменён титульный объём: 250 → 280 м²', comment: reason, highlight: true, meta: { from: 250, to: 280 }, createdAt: daysAgo(3) } });
   for (const uid of [U.mech.id, U.hand.id, U.client.id, U.manager.id]) {
     await notify(uid, 'IMPORTANT', 'Объект №8: титул изменён после одобрения (250 → 280 м²), нужен пересчёт', 3, { objectId: o8.id, executionId: e8.id });
   }
@@ -251,11 +263,7 @@ async function main() {
 
   await prisma.settings.update({ where: { id: 1 }, data: { actCounter } });
 
-  const counts = {
-    users: await prisma.user.count(), objects: await prisma.siteObject.count(), executions: await prisma.execution.count(),
-    forms: await prisma.contractorForm.count(), acts: await prisma.act.count(), notifications: await prisma.notification.count(),
-  };
-  console.log('Seed OK:', counts);
+  await report();
 }
 
 main()

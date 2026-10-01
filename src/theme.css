@@ -1,0 +1,94 @@
+/* Глобальные правки поверх Ant Design. Цвета — см. src/theme.ts */
+html, body { background: #e8ecf0; }
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+/* Цифры одинаковой ширины — столбцы объёмов выравниваются */
+.ant-table, .ant-statistic-content, .ant-descriptions, .tnum { font-variant-numeric: tabular-nums; }
+
+/* Карточки: тонкая рамка + мягкая тень вместо «белого листа» */
+.ant-card { box-shadow: 0 1px 2px rgba(31, 37, 44, .05), 0 2px 6px rgba(31, 37, 44, .04); }
+.ant-card .ant-card { box-shadow: none; }
+.ant-card-head-title { font-weight: 600; }
+/* Заголовок + кнопки карточки переносятся, а не наезжают друг на друга */
+.ant-card .ant-card-head-wrapper { flex-wrap: wrap; gap: 8px 16px; padding: 8px 0; }
+.ant-card .ant-card-head-title { white-space: normal; overflow: visible; flex: 1 1 260px; min-width: 0; }
+.ant-card-extra { margin-inline-start: 0 !important; display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Сворачивающийся заголовок: текст занимает строку целиком */
+.ant-collapse-header-text { min-width: 0; flex: 1; }
+
+/* Метки в Descriptions — без «висящего» двоеточия с пробелом */
+.ant-descriptions-item-label::after { margin-inline: 0 8px !important; }
+
+/* Неактивная главная кнопка — приглушённый тёмный текст */
+.ant-btn-primary:disabled { color: rgba(31, 37, 44, .35); }
+
+/* Длинные теги и переключатели не выталкивают страницу за край экрана */
+.ant-descriptions-item-content { flex-wrap: wrap; row-gap: 4px; min-width: 0; }
+.ant-descriptions .ant-tag { max-width: 100%; white-space: normal; }
+.ant-segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+
+/* Таблицы на узких экранах — горизонтальная прокрутка вместо выхода за край */
+.ant-table-wrapper { max-width: 100%; }
+.ant-table-content { overflow-x: auto; }
+@media (max-width: 767px) {
+  .ant-table-content > table { min-width: 640px; }
+  .ant-descriptions-bordered .ant-descriptions-view > table { table-layout: fixed; }
+  .ant-descriptions-bordered .ant-descriptions-item-label { width: 112px; }
+  .ant-descriptions-item-content { word-break: break-word; }
+  .ant-card-head { padding: 0 14px; }
+  .ant-card-body { padding: 14px; }
+  .ant-card-extra .ant-btn { flex: 0 0 auto; }
+  .ant-descriptions-bordered .ant-descriptions-item-label,
+  .ant-descriptions-bordered .ant-descriptions-item-content { padding: 8px 10px; }
+  .ant-modal { max-width: calc(100vw - 16px); }
+}
+
+/* Боковое меню и шапка */
+.app-brand { padding: 18px 18px 14px; color: #fff; line-height: 1.25; border-bottom: 1px solid #353d47; margin-bottom: 8px; }
+.app-brand-title { font-weight: 650; font-size: 15px; letter-spacing: .01em; display: flex; align-items: center; gap: 8px; }
+.app-brand-sub { font-size: 12px; color: #97a3b0; margin-top: 4px; }
+.app-brand-mark { width: 22px; height: 22px; border-radius: 4px; background: repeating-linear-gradient(90deg, #f5b400 0 6px, transparent 6px 9px); flex: 0 0 auto; }
+.app-header { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #353d47; color: #e7ebef; line-height: 1.3 !important; position: sticky; top: 0; z-index: 20; }
+.app-header .ant-btn-default { background: transparent; color: #e7ebef; border-color: #4a5461; }
+.app-header .ant-btn-default:not(:disabled):hover { background: rgba(255, 255, 255, .08); color: #fff; border-color: #6b7785; }
+.app-user { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; }
+.app-user-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
+.app-user-role { font-size: 12px; color: #97a3b0; }
+.app-mode { font-size: 12px; color: #97a3b0; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.app-mode::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #3fb950; box-shadow: 0 0 0 3px rgba(63, 185, 80, .18); }
+.demo-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px dashed #f5b400; border-radius: 6px; background: rgba(245, 180, 0, .1); color: #e7ebef; font-size: 13px; }
+.demo-bar .demo-badge { background: #f5b400; color: #1f252c; font-weight: 700; font-size: 11px; letter-spacing: .06em; padding: 1px 6px; border-radius: 4px; }
+.app-content { padding: 20px; max-width: 1600px; width: 100%; margin: 0 auto; }
+@media (max-width: 991px) {
+  .app-content { padding: 12px; }
+  .app-header { padding: 0 12px !important; gap: 8px; }
+}
+.app-drawer .ant-drawer-content { background: #1f252c; }
+.app-drawer .ant-drawer-body { padding: 0; }
+
+/* Плитки показателей: одинаковая высота */
+.stat-card { height: 100%; }
+.stat-card .ant-card-body { padding: 16px 18px; }
+.stat-card .ant-statistic-title { min-height: 2.6em; line-height: 1.3; color: #5f6b78; }
+.stat-card.accent { box-shadow: inset 0 3px 0 #f5b400, 0 1px 2px rgba(31, 37, 44, .05); }
+
+/* Вложенные панели */
+.panel { background: #f3f5f8; border: 1px solid #e1e6eb; border-radius: 8px; }
+
+/* Чат */
+.chat-box { max-height: 380px; overflow-y: auto; padding: 10px; background: #f3f5f8; border: 1px solid #e1e6eb; border-radius: 8px; margin-bottom: 8px; }
+.chat-msg { max-width: 85%; border-radius: 8px; padding: 6px 10px; border: 1px solid #e1e6eb; background: #fff; }
+.chat-msg.mine { background: #fff4d1; border-color: #f0d68a; }
+.chat-input { display: flex; gap: 8px; align-items: flex-end; }
+.chat-input .ant-input { flex: 1; }
+
+/* Вход */
+.login-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 12px;
+  background:
+    repeating-linear-gradient(180deg, rgba(245, 180, 0, .28) 0 40px, transparent 40px 80px) center top / 6px 100% no-repeat,
+    linear-gradient(160deg, #1f252c 0%, #2c3540 100%);
+}

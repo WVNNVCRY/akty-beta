@@ -72,7 +72,7 @@ export default function Notifications() {
       let title = key;
       let subtitle: string | undefined;
       if (groupBy === 'object') {
-        title = key === '_system' ? 'Сводки и системные' : objName(key) || 'Удалённый объект';
+        title = key === '_system' ? 'Сводки и системные уведомления' : objName(key) || 'Удалённый объект';
         const o = data.objects.find((x) => x.id === key);
         subtitle = o ? `${o.district} · ${o.address}` : undefined;
       } else if (groupBy === 'day') {
@@ -108,7 +108,7 @@ export default function Notifications() {
       title={<span>Уведомления {countBy('all') > 0 && <Badge count={countBy('all')} style={{ marginLeft: 6 }} />}</span>}
       extra={filtered.some((n) => !n.read) && (
         <Button icon={<CheckOutlined />} onClick={() => markRead(filtered.filter((n) => !n.read).map((n) => n.id))}>
-          Прочитать показанные ({filtered.filter((n) => !n.read).length})
+          Отметить показанные прочитанными ({filtered.filter((n) => !n.read).length})
         </Button>
       )}
     >
@@ -120,7 +120,7 @@ export default function Notifications() {
             { value: 'all', label: <span>Все {countBy('all') > 0 && <Badge count={countBy('all')} size="small" />}</span> },
             ...(Object.keys(NOTIFICATION_KIND) as NotificationKind[]).map((k) => ({
               value: k,
-              label: <span>{NOTIFICATION_KIND[k].label} {countBy(k) > 0 && <Badge count={countBy(k)} size="small" color={k === 'action' ? '#1677ff' : k === 'important' ? '#eb2f96' : k === 'reminder' ? '#fa8c16' : '#bfbfbf'} />}</span>,
+              label: <span>{NOTIFICATION_KIND[k].label} {countBy(k) > 0 && <Badge count={countBy(k)} size="small" color={k === 'action' ? '#1f6fb2' : k === 'important' ? '#eb2f96' : k === 'reminder' ? '#fa8c16' : '#bfbfbf'} />}</span>,
             })),
           ]}
         />
@@ -156,12 +156,12 @@ export default function Notifications() {
                           <Typography.Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>всего {g.items.length}</Typography.Text>
                         </div>
                         {g.subtitle && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{g.subtitle}</Typography.Text>}
-                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#595959', fontSize: 13 }}>
+                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#3a4450', fontSize: 13 }}>
                           {g.last.text}
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: 12, color: '#8c8c8c' }}>{fmtDate(g.last.at)}</div>
+                        <div style={{ fontSize: 12, color: '#5f6b78' }}>{fmtDate(g.last.at)}</div>
                         <Space size={2} style={{ marginTop: 4 }}>
                           {kinds.map((x) => <Tag key={x.k} color={NOTIFICATION_KIND[x.k].color} style={{ fontSize: 11, marginInlineEnd: 0 }}>{NOTIFICATION_KIND[x.k].label}: {x.c}</Tag>)}
                         </Space>
@@ -170,14 +170,14 @@ export default function Notifications() {
                   ),
                   extra: g.unread > 0 && (
                     <Button size="small" type="link" onClick={(e) => { e.stopPropagation(); markRead(g.items.filter((n) => !n.read).map((n) => n.id)); }}>
-                      Прочитать
+                      Отметить прочитанными
                     </Button>
                   ),
                   children: (
                     <div>
                       {g.items.slice(0, limit).map((n) => (
                         <div key={n.id} onClick={() => open(n)}
-                          style={{ padding: '8px 10px', borderRadius: 6, cursor: 'pointer', marginBottom: 4, background: n.read ? undefined : '#f0f7ff', borderLeft: `3px solid ${n.read ? 'transparent' : '#1677ff'}` }}>
+                          style={{ padding: '8px 10px', borderRadius: 6, cursor: 'pointer', marginBottom: 4, background: n.read ? undefined : '#fff8e1', borderLeft: `3px solid ${n.read ? 'transparent' : '#f5b400'}` }}>
                           <Space size={4} wrap style={{ marginBottom: 2 }}>
                             <Tag color={NOTIFICATION_KIND[n.kind].color} style={{ fontSize: 11 }}>{NOTIFICATION_KIND[n.kind].label}</Tag>
                             {groupBy !== 'object' && objName(n.objectId) && <Tag style={{ fontSize: 11 }}>{objName(n.objectId)}</Tag>}

@@ -3,7 +3,7 @@ import { Alert, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Selec
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { useData } from '../store';
 import { ROLE_LABEL, type Data, type Role } from '../types';
-import { fmt } from '../logic';
+import { fmt, fmtCoef } from '../logic';
 import { nowIso, uid } from '../engine';
 import { useAction, useGuardedClose } from '../components/common';
 import { actions, type AdminColl } from '../actions';
@@ -33,7 +33,7 @@ function Crud({ coll, columns, fields, canDelete, defaults, normalize }: {
             <Space>
               <Button size="small" icon={<EditOutlined />} onClick={() => setEdit(r)} />
               {canDelete && (
-                <Popconfirm title="Удалить?" onConfirm={() => act(() => actions.adminDelete(coll, r.id, (d) => {
+                <Popconfirm title="Удалить запись?" onConfirm={() => act(() => actions.adminDelete(coll, r.id, (d) => {
                   const why = canDelete(d, r);
                   if (why) throw new Error(why);
                   (d as any)[coll] = (d as any)[coll].filter((x: any) => x.id !== r.id);
@@ -46,7 +46,7 @@ function Crud({ coll, columns, fields, canDelete, defaults, normalize }: {
         }]}
       />
       <Modal
-        open={!!edit} destroyOnClose title={edit?.id ? 'Редактирование' : 'Создание'} okText="Сохранить" onCancel={() => guard(form.isFieldsTouched(), () => setEdit(null))}
+        open={!!edit} destroyOnClose title={edit?.id ? 'Редактирование записи' : 'Новая запись'} okText="Сохранить" onCancel={() => guard(form.isFieldsTouched(), () => setEdit(null))}
         onOk={() => form.validateFields().then(async (v) => {
           const ok = await act(() => actions.adminSave(coll, edit?.id || null, v, (d) => {
             normalize?.(v, d, edit?.id ? edit : undefined);
@@ -79,7 +79,7 @@ export default function Admin() {
   const clName = (id?: string | null) => data.clients.find((c) => c.id === id)?.name;
 
   return (
-    <Card title="Админка (только генподрядчик)">
+    <Card title="Администрирование">
       <Tabs items={[
         {
           key: 'users', label: 'Пользователи', children: (
@@ -106,7 +106,7 @@ export default function Admin() {
               fields={[
                 { name: 'name', label: 'ФИО', input: <Input />, required: true },
                 { name: 'login', label: 'Логин', input: <Input />, required: true },
-                { name: 'password', label: 'Пароль (смена пароля завершает старые сессии)', input: <Input />, required: true },
+                { name: 'password', label: 'Пароль (при смене завершаются активные сеансы пользователя)', input: <Input />, required: true },
                 { name: 'role', label: 'Роль', required: true, input: <Select options={(Object.keys(ROLE_LABEL) as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r] }))} /> },
                 { name: 'contractorId', label: 'Подрядчик', show: (v) => v.role === 'CONTRACTOR', input: <Select options={data.contractors.map((c) => ({ value: c.id, label: c.name }))} /> },
                 { name: 'clientId', label: 'Заказчик', show: (v) => v.role === 'CLIENT', input: <Select options={data.clients.map((c) => ({ value: c.id, label: c.name }))} /> },
@@ -127,7 +127,7 @@ export default function Admin() {
               ]}
               fields={[
                 { name: 'name', label: 'Название', input: <Input />, required: true },
-                { name: 'specialization', label: 'Специализация', required: true, input: <Select options={['Механика', 'Ручка', 'Другое'].map((x) => ({ value: x, label: x }))} /> },
+                { name: 'specialization', label: 'Специализация', required: true, input: <Select options={['Машинная разметка', 'Ручная разметка', 'Другое'].map((x) => ({ value: x, label: x }))} /> },
               ]}
             />
           ),
@@ -145,7 +145,7 @@ export default function Admin() {
         {
           key: 'mt', label: 'Виды разметки', children: (
             <>
-              <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Коэффициенты перевода п.м → м² демонстрационные (ширина линии × доля заполнения). Уточните по вашим нормативам."
+              <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Коэффициенты перевода пог. м → м² демонстрационные (ширина линии × доля заполнения). Уточните по вашим нормативам."
                 description={API_MODE
                 ? 'Изменение коэффициента пересчитывает все формы и акты, которые ещё не согласованы. Согласованные и архивные акты сохраняют коэффициенты, по которым были согласованы.'
                 : 'Изменение коэффициента влияет на пересчёт всех форм, включая уже поданные.'} />
@@ -156,14 +156,14 @@ export default function Admin() {
                   { title: 'Код', dataIndex: 'code', width: 80 },
                   { title: 'Название', dataIndex: 'name' },
                   { title: 'Ширина, м', dataIndex: 'widthM' },
-                  { title: 'Доля заполнения', dataIndex: 'fillRatio' },
-                  { title: 'м² на 1 п.м', render: (_: any, m: any) => <b>{fmt(m.widthM * m.fillRatio)}</b> },
+                  { title: 'Коэф. заполнения', dataIndex: 'fillRatio' },
+                  { title: 'м² на 1 пог. м', render: (_: any, m: any) => <b>{fmtCoef(m.widthM * m.fillRatio)}</b> },
                 ]}
                 fields={[
-                  { name: 'code', label: 'Код (ГОСТ)', input: <Input />, required: true },
+                  { name: 'code', label: 'Код по ГОСТ Р 51256', input: <Input />, required: true },
                   { name: 'name', label: 'Название', input: <Input />, required: true },
-                  { name: 'widthM', label: 'Ширина линии, м', input: <InputNumber min={0} step={0.05} style={{ width: '100%' }} />, required: true },
-                  { name: 'fillRatio', label: 'Доля заполнения (1 — сплошная, 0.25 — штрих 1:3)', input: <InputNumber min={0} max={1} step={0.05} style={{ width: '100%' }} />, required: true },
+                  { name: 'widthM', label: 'Ширина линии, м', input: <InputNumber decimalSeparator="," min={0} step={0.05} style={{ width: '100%' }} />, required: true },
+                  { name: 'fillRatio', label: 'Коэффициент заполнения (1 — сплошная; 0,25 — прерывистая 1:3)', input: <InputNumber decimalSeparator="," min={0} max={1} step={0.05} style={{ width: '100%' }} />, required: true },
                 ]}
               />
             </>
@@ -173,10 +173,10 @@ export default function Admin() {
           key: 'settings', label: 'Настройки', children: (
             <Form layout="vertical" style={{ maxWidth: 420 }} initialValues={s}
               onFinish={(v) => act(() => actions.saveSettings(v), 'Настройки сохранены')}>
-              <Form.Item name="remindFirstDays" label="Первое напоминание (недостача), дней"><InputNumber min={1} /></Form.Item>
-              <Form.Item name="remindSecondDays" label="Второе напоминание (требуется вмешательство), дней"><InputNumber min={1} /></Form.Item>
+              <Form.Item name="remindFirstDays" label="Первое напоминание (недостача), дней"><InputNumber decimalSeparator="," min={1} /></Form.Item>
+              <Form.Item name="remindSecondDays" label="Второе напоминание (требуется вмешательство), дней"><InputNumber decimalSeparator="," min={1} /></Form.Item>
               <Form.Item name="toleranceM2" label="Допуск при сверке с титулом, м²" extra="0 — строгое равенство, как в ТЗ">
-                <InputNumber min={0} step={0.1} />
+                <InputNumber decimalSeparator="," min={0} step={0.1} />
               </Form.Item>
               <Space>
                 <Button type="primary" htmlType="submit">Сохранить</Button>

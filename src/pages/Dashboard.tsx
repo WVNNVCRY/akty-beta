@@ -21,7 +21,7 @@ export default function Dashboard() {
     const reasons: { label: string; color: string }[] = [];
     if (ex.titleChange) reasons.push({ label: `изменён титул ${fmt(ex.titleChange.from)} → ${fmt(ex.titleChange.to)}`, color: 'magenta' });
     if (forms.some((f) => f.status === 'REJECTED_BY_CLIENT')) reasons.push({ label: 'заказчик отклонил форму', color: 'red' });
-    if (forms.some((f) => f.status === 'REJECTED_BY_GC')) reasons.push({ label: 'возвращено ГП', color: 'volcano' });
+    if (forms.some((f) => f.status === 'REJECTED_BY_GC')) reasons.push({ label: 'возвращена ГП', color: 'volcano' });
     if (forms.some((f) => f.status === 'DRAFT' && f.history.some((x) => /после одобрения/.test(x.action)))) reasons.push({ label: 'форма отозвана после одобрения', color: 'purple' });
     return { ex, obj, stage, idle, started, reasons, short: shortage(executionBalance(data, ex)) };
   });
@@ -34,17 +34,17 @@ export default function Dashboard() {
       {[
         ['Объектов', data.objects.length],
         ['Выполнений в работе', exRows.filter((r) => !['APPROVED', 'ARCHIVED'].includes(r.stage)).length],
-        ['У заказчика', count('ON_CHECK_CLIENT')],
-        ['Ждут проверки ГП', onGc.length],
-        ['Согласовано (не в архиве)', count('APPROVED')],
+        ['На проверке заказчика', count('ON_CHECK_CLIENT')],
+        ['На проверке ГП', onGc.length],
+        ['Согласовано', count('APPROVED')],
         ['В архиве', count('ARCHIVED')],
       ].map(([t, v]) => (
-        <Col key={t as string} xs={12} md={8} xl={4}><Card><Statistic title={t} value={v as number} /></Card></Col>
+        <Col key={t as string} xs={12} md={8} xl={4}><Card className={`stat-card${t === 'На проверке ГП' && (v as number) > 0 ? ' accent' : ''}`}><Statistic title={t} value={v as number} /></Card></Col>
       ))}
       <Col xs={24}>
-        <Card title={<span><AlertOutlined style={{ color: '#fa541c' }} /> Требует внимания</span>}
-          extra={<Typography.Text type="secondary">только важные события: изменение объёма, отклонения, возвраты, отзыв одобренных форм</Typography.Text>}>
-          {attention.length === 0 ? <Empty description="Всё в порядке" /> : (
+        <Card title={<span><AlertOutlined style={{ color: '#d4380d', marginInlineEnd: 8 }} />Требует внимания</span>}
+          extra={<Typography.Text type="secondary">изменения титула, отклонения, возвраты, отзыв одобренных форм</Typography.Text>}>
+          {attention.length === 0 ? <Empty description="Событий, требующих внимания, нет" /> : (
             <Table
               rowKey={(r) => r.ex.id} size="small" pagination={false} dataSource={attention}
               onRow={(r) => ({ onClick: () => nav(`/objects/${r.obj.id}?ex=${r.ex.id}`), style: { cursor: 'pointer' } })}
@@ -54,7 +54,7 @@ export default function Dashboard() {
                 { title: 'Этап', render: (_, r) => <Tag color={STAGE[r.stage].color}>{STAGE[r.stage].label}</Tag> },
                 { title: 'Причина', render: (_, r) => <Space size={[4, 4]} wrap>{r.reasons.map((x) => <Tag key={x.label} color={x.color}>{x.label}</Tag>)}</Space> },
                 { title: 'Обновлено', render: (_, r) => `${r.idle} дн. назад`, width: 110 },
-                { title: 'Недостача, м²', align: 'right', render: (_, r) => (r.short > 0 ? fmt(r.short) : '—') },
+                { title: 'Недостача, м²', align: 'right', render: (_, r) => (r.short > 0 ? fmt(r.short) : '—') },
               ]}
             />
           )}
@@ -66,7 +66,7 @@ export default function Dashboard() {
         </Card>
       </Col>
       <Col xs={24} xl={12}>
-        <Card title="У заказчика на проверке">
+        <Card title="На проверке у заказчика">
           <ActsTable acts={data.acts.filter((a) => a.status === 'ON_CHECK_CLIENT')} compact />
         </Card>
       </Col>

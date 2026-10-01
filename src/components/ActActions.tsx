@@ -34,7 +34,7 @@ export default function ActActions({ act, size }: { act: Act; size?: 'small' | '
         <Button size={size} danger icon={<RollbackOutlined />} onClick={() => { setSel(act.rows.map((r) => r.contractorId)); setRet(true); }}>Вернуть на доработку</Button>
       )}
       {(staff || me.role === 'CLIENT') && done && (
-        <Button size={size} icon={<FileWordOutlined />} onClick={() => run(() => actions.downloadWord(data, act))}>Скачать Word</Button>
+        <Button size={size} icon={<FileWordOutlined />} onClick={() => run(() => actions.downloadWord(data, act))}>Выгрузить в Word</Button>
       )}
       {staff && act.status === 'APPROVED' && (
         <Popconfirm title={`Отправить акт ${act.number} в архив?`} description="Редактирование будет доступно только ГП через корректировку."
@@ -55,7 +55,7 @@ export default function ActActions({ act, size }: { act: Act; size?: 'small' | '
           Комментарий видят подрядчики, заказчик — нет.
         </Typography.Paragraph>
         <Checkbox.Group value={sel} onChange={(v) => setSel(v as string[])} style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}
-          options={act.rows.map((r) => ({ value: r.contractorId, label: cName(data, r.contractorId) + (r.autoZero ? ' (автоформа с нулями)' : '') }))} />
+          options={act.rows.map((r) => ({ value: r.contractorId, label: cName(data, r.contractorId) + (r.autoZero ? ' (автоматическая форма с нулевым объёмом)' : '') }))} />
         <Input.TextArea rows={4} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Что нужно исправить" />
       </Modal>
     </Space>

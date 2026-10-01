@@ -80,7 +80,7 @@ with sync_playwright() as p:
     toast(page, 'принята')
     page.reload(); open_obj(page)
     expect(page.get_by_text('Ожидание партнёра', exact=False).first).to_be_visible()
-    check(True, 'механика подала 2000 п.м (=200 м²), статус с сервера после перезагрузки')
+    check(True, 'механика подала 2000 пог. м (=200 м²), статус с сервера после перезагрузки')
     logout(page)
 
     # --- подрядчик 2: превышение → ошибка сервера не появляется, кнопка блокируется; затем точная подача
@@ -91,7 +91,7 @@ with sync_playwright() as p:
     page.locator('.ant-table .ant-input-number-input').first.fill('362.5')
     expect(page.get_by_text('объём сойдётся с титулом', exact=False)).to_be_visible()
     page.get_by_role('button', name='Подать форму').click()
-    toast(page, 'сошлись')
+    toast(page, 'равна титулу')
     page.wait_for_timeout(500)
     st = api('state', tok=gct)
     ex = next(e for e in st['executions'] if e['objectId'] == obj['id'])
@@ -129,7 +129,7 @@ with sync_playwright() as p:
     toast(page, 'Акт согласован')
     expect(page.get_by_text('Согласован', exact=False).first).to_be_visible()
     with page.expect_download() as d:
-        page.get_by_role('button', name='Скачать Word').first.click()
+        page.get_by_role('button', name='Выгрузить в Word').first.click()
     path = d.value.path(); data = open(path, 'rb').read()
     check(data[:2] == b'PK' and d.value.suggested_filename.endswith('.docx'), f'Word скачан: {d.value.suggested_filename} ({len(data)} б)')
     st = api('state', tok=gct)
@@ -165,7 +165,7 @@ with sync_playwright() as p:
     pw = page.locator('input[type=password]')
     pw.nth(0).fill('123'); pw.nth(1).fill('456789'); 
     if pw.count() > 2: pw.nth(2).fill('456789')
-    page.get_by_role('button', name='Сменить', exact=True).click()
+    page.get_by_role('button', name='Сменить пароль', exact=True).click()
     toast(page, 'Пароль')
     page.reload(); expect(page.get_by_role('button', name='Выйти')).to_be_visible()
     check(True, 'после смены пароля сессия жива (новый токен)')

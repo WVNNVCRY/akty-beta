@@ -5,10 +5,10 @@ import { ArrowLeftOutlined, DownloadOutlined, EditOutlined, WarningOutlined } fr
 import JSZip from 'jszip';
 import { useData, useMe } from '../store';
 import { ACT_STATUS, type Act, type Data, type FileRef } from '../types';
-import { canDownloadFile, coef, fmt, isStaff, lineM2, linesM2, round2, visibleActs } from '../logic';
+import { canDownloadFile, coef, fmt, fmtCoef, isStaff, lineM2, linesM2, round2, visibleActs } from '../logic';
 import { actions } from '../actions';
 import { downloadBlob, fetchFileBlob } from '../files';
-import { FileLink, History, fmtDate, fmtDay, useAction, useGuardedClose } from '../components/common';
+import { FileLink, History, PageTitle, fmtDate, fmtDay, useAction, useGuardedClose } from '../components/common';
 import Chat from '../components/Chat';
 import ActActions from '../components/ActActions';
 import { FormReview } from './ObjectCard';
@@ -69,9 +69,9 @@ function CorrectionModal({ act, open, onClose }: { act: Act; open: boolean; onCl
         columns={[
           { title: 'Вид разметки', render: (_, r) => r.mt?.code },
           ...vals.map((v, i) => ({
-            title: `${cName(data, v.contractorId)}, п.м`,
+            title: `${cName(data, v.contractorId)}, пог. м`,
             render: (_: any, r: any) => (
-              <InputNumber min={0} precision={2} value={v.lines.find((l) => l.markingTypeId === r.key)?.linearM}
+              <InputNumber decimalSeparator="," min={0} precision={2} value={v.lines.find((l) => l.markingTypeId === r.key)?.linearM}
                 onChange={(x) => { setDirty(true); setVals(vals.map((vv, j) => (j !== i ? vv : { ...vv, lines: vv.lines.map((l) => (l.markingTypeId === r.key ? { ...l, linearM: Number(x) || 0 } : l)) }))); }} />
             ),
           })),
@@ -105,13 +105,13 @@ export default function ActCard() {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
       <Card
-        title={<Space wrap><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => nav(-1)} />Акт скрытых работ {act.number} <Tag color={ACT_STATUS[act.status].color}>{ACT_STATUS[act.status].label}</Tag>{act.round > 1 && <Tag>редакция {act.round}</Tag>}</Space>}
+        title={<PageTitle onBack={() => nav(-1)} tags={<><Tag color={ACT_STATUS[act.status].color}>{ACT_STATUS[act.status].label}</Tag>{act.round > 1 && <Tag>редакция {act.round}</Tag>}</>}>{`Акт освидетельствования скрытых работ ${act.number}`}</PageTitle>}
         extra={
           <Space wrap>
             <ActActions act={act} />
             {me.role === 'GC' && ['APPROVED', 'ARCHIVED'].includes(act.status) && <Button icon={<EditOutlined />} onClick={() => setCorrect(true)}>Корректировка</Button>}
             <Button icon={<DownloadOutlined />} onClick={() => zipAction(() => downloadActZip(data, act, (f) => canDownloadFile(data, me, f.id)))}>
-              {me.role === 'CONTRACTOR' ? 'Мои файлы (zip)' : 'Все файлы (zip)'}
+              {me.role === 'CONTRACTOR' ? 'Мои приложения (ZIP)' : 'Все приложения (ZIP)'}
             </Button>
           </Space>
         }
@@ -120,7 +120,7 @@ export default function ActCard() {
           items={[
             { title: act.status === 'IN_REVISION' ? 'На доработке' : 'Заказчик', description: 'проверка форм' },
             { title: 'Генподрядчик', description: 'проверка акта' },
-            { title: 'Согласован', description: 'Word' },
+            { title: 'Согласован', description: 'выгрузка в Word' },
             { title: 'Архив' },
           ]} />
         {ex.titleChange && (
@@ -133,9 +133,9 @@ export default function ActCard() {
           <Descriptions.Item label="Адрес">{obj.address}</Descriptions.Item>
           <Descriptions.Item label="Округ">{obj.district}</Descriptions.Item>
           <Descriptions.Item label="Выполнение">{ex.name}</Descriptions.Item>
-          <Descriptions.Item label="Период"><span style={{ whiteSpace: 'nowrap' }}>{fmtDay(ex.periodFrom)} — {fmtDay(ex.periodTo)}</span></Descriptions.Item>
+          <Descriptions.Item label="Период">{`${fmtDay(ex.periodFrom)} — ${fmtDay(ex.periodTo)}`}</Descriptions.Item>
           <Descriptions.Item label="Заказчик">{data.clients.find((c) => c.id === obj.clientId)?.name}</Descriptions.Item>
-          <Descriptions.Item label="Титул"><b>{fmt(ex.titleM2)} м²</b></Descriptions.Item>
+          <Descriptions.Item label="Титульный объём"><b>{fmt(ex.titleM2)} м²</b></Descriptions.Item>
           <Descriptions.Item label="Создан">{fmtDate(act.createdAt)}</Descriptions.Item>
           <Descriptions.Item label="Word">{act.wordDownloadedAt ? `выгружен ${fmtDate(act.wordDownloadedAt)}` : '—'}</Descriptions.Item>
         </Descriptions>
@@ -150,23 +150,23 @@ export default function ActCard() {
                 locale={{ emptyText: 'Объёмов нет' }}
                 columns={[
                   { title: 'Вид разметки', render: (_, r) => <span><b>{r.mt?.code}</b> {r.mt?.name}</span> },
-                  { title: 'м²/п.м', render: (_, r) => fmt(coef(r.mt)), width: 70 },
+                  { title: 'м² на 1 пог. м', render: (_, r) => fmtCoef(coef(r.mt)), width: 96 },
                   ...act.rows.map((row, i) => ({
                     title: <span>{cName(data, row.contractorId)}{row.autoZero && <div><Tag color="cyan" style={{ fontSize: 10 }}>авто, 0 м²</Tag></div>}</span>,
                     align: 'right' as const,
-                    render: (_: any, r: any) => (r.per[i].m2 ? <span>{fmt(r.per[i].m2)} м²<br /><Typography.Text type="secondary" style={{ fontSize: 11 }}>{fmt(r.per[i].pm)} п.м</Typography.Text></span> : '—'),
+                    render: (_: any, r: any) => (r.per[i].m2 ? <span>{fmt(r.per[i].m2)} м²<br /><Typography.Text type="secondary" style={{ fontSize: 11 }}>{fmt(r.per[i].pm)} пог. м</Typography.Text></span> : '—'),
                   })),
-                  { title: 'Итого, м²', align: 'right', render: (_, r) => <b>{fmt(r.total)}</b> },
+                  { title: 'Итого, м²', align: 'right', render: (_, r) => <b>{fmt(r.total)}</b> },
                 ]}
                 summary={() => (
                   <>
-                    <Table.Summary.Row style={{ background: '#fafafa' }}>
+                    <Table.Summary.Row style={{ background: '#f3f5f8' }}>
                       <Table.Summary.Cell index={0} colSpan={2}><b>Итого по подрядчикам</b></Table.Summary.Cell>
                       {act.rows.map((r, i) => <Table.Summary.Cell key={i} index={2 + i} align="right">{fmt(linesM2(data, r.lines))}</Table.Summary.Cell>)}
                       <Table.Summary.Cell index={99} align="right"><b>{fmt(factTotal)}</b></Table.Summary.Cell>
                     </Table.Summary.Row>
-                    <Table.Summary.Row style={{ background: '#fafafa' }}>
-                      <Table.Summary.Cell index={0} colSpan={2 + act.rows.length}><b>Титул</b></Table.Summary.Cell>
+                    <Table.Summary.Row style={{ background: '#f3f5f8' }}>
+                      <Table.Summary.Cell index={0} colSpan={2 + act.rows.length}><b>Титульный объём</b></Table.Summary.Cell>
                       <Table.Summary.Cell index={99} align="right">
                         <b>{fmt(ex.titleM2)}</b>{Math.abs(factTotal - ex.titleM2) > 1e-9 && <div><Tag color="orange">расхождение {fmt(factTotal - ex.titleM2)}</Tag></div>}
                       </Table.Summary.Cell>
@@ -186,7 +186,7 @@ export default function ActCard() {
                   <div key={r.contractorId} style={{ marginBottom: 12 }}>
                     <b>{cName(data, r.contractorId)}</b>
                     <div style={{ paddingLeft: 12 }}>
-                      {r.autoZero ? <Typography.Text type="secondary">автоформа с нулевым объёмом — файлы не требуются</Typography.Text> : (
+                      {r.autoZero ? <Typography.Text type="secondary">автоматическая форма с нулевым объёмом — файлы не требуются</Typography.Text> : (
                         <>
                           <div><FileLink file={r.schemeFile} label="Схема" /></div>
                           <div><FileLink file={r.photoFile} label="Фото" /></div>

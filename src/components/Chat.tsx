@@ -23,30 +23,30 @@ export default function Chat({ objectId }: { objectId: string }) {
   };
   return (
     <div>
-      <div ref={box} style={{ maxHeight: 380, overflowY: 'auto', padding: 8, background: '#fafafa', borderRadius: 8, marginBottom: 8 }}>
-        {msgs.length === 0 && <Empty description="Сообщений пока нет" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+      <div ref={box} className="chat-box">
+        {msgs.length === 0 && <Empty description="Сообщений пока нет" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ margin: '12px 0' }} />}
         {msgs.map((m) => {
           const u = data.users.find((x) => x.id === m.userId);
           const mine = m.userId === me.id;
           return (
             <div key={m.id} style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
-              <div style={{ maxWidth: '80%', background: mine ? '#e6f4ff' : '#fff', border: '1px solid #f0f0f0', borderRadius: 8, padding: '6px 10px' }}>
-                <div style={{ fontSize: 12 }}>
-                  <b>{u?.name}</b> {u && <Tag style={{ fontSize: 10, marginLeft: 4 }}>{ROLE_LABEL[u.role]}</Tag>}
+              <div className={`chat-msg${mine ? ' mine' : ''}`}>
+                <div style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                  <b>{u?.name}</b>{u && <span style={{ color: '#5f6b78' }}>{ROLE_LABEL[u.role]}</span>}
                 </div>
-                <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                <div style={{ whiteSpace: 'pre-wrap', margin: '2px 0' }}>{m.text}</div>
                 <Typography.Text type="secondary" style={{ fontSize: 11 }}>{fmtDate(m.at)}</Typography.Text>
               </div>
             </div>
           );
         })}
       </div>
-      <Space.Compact style={{ width: '100%' }}>
+      <div className="chat-input">
         <Input.TextArea
           value={text}
           onChange={(e) => setText(e.target.value)}
           autoSize={{ minRows: 1, maxRows: 4 }}
-          placeholder="Сообщение в чат объекта (видят все участники, включая заказчика)"
+          placeholder="Сообщение участникам объекта"
           onPressEnter={(e) => {
             if (!e.shiftKey) {
               e.preventDefault();
@@ -54,8 +54,11 @@ export default function Chat({ objectId }: { objectId: string }) {
             }
           }}
         />
-        <Button type="primary" icon={<SendOutlined />} onClick={send} disabled={!text.trim()} />
-      </Space.Compact>
+        <Button type="primary" icon={<SendOutlined />} onClick={send} disabled={!text.trim()} aria-label="Отправить" />
+      </div>
+      <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
+        Видят все участники объекта, включая заказчика. Enter — отправить, Shift+Enter — новая строка.
+      </Typography.Text>
     </div>
   );
 }

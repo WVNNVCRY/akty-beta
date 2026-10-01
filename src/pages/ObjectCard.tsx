@@ -16,11 +16,12 @@ import {
 import {
   COUNTED, EDITABLE, actLocked, actOf, coef, executionBalance, executionJournal, fmt, formTotalM2, isStaff, lineM2, linesM2,
   round2, visibleExecutions, visibleObjects,
+  fmtCoef,
 } from '../logic';
 import { allocatedM2, canManageObjects, uid } from '../engine';
 import { actions } from '../actions';
 import { uploadPdf } from '../files';
-import { FileLink, History, fmtDate, fmtDay, useAction, useGuardedClose, userName } from '../components/common';
+import { FileLink, History, PageTitle, fmtDate, fmtDay, useAction, useGuardedClose, userName } from '../components/common';
 import Chat from '../components/Chat';
 import ActActions from '../components/ActActions';
 import { ExecTag, ObjectModal } from './Objects';
@@ -84,8 +85,8 @@ function VolumesTable({ ex }: { ex: Execution }) {
             format={() => `${fmt(bal.submitted)} / ${fmt(ex.titleM2)} м²`} />
         </Col>
         <Col>
-          {ok ? <Tag color="green">сошлось с титулом</Tag>
-            : bal.diff < 0 ? <Tag color="gold">недостача {fmt(-bal.diff)} м²</Tag> : <Tag color="red">перебор {fmt(bal.diff)} м²</Tag>}
+          {ok ? <Tag color="green">соответствует титулу</Tag>
+            : bal.diff < 0 ? <Tag color="gold">недостача {fmt(-bal.diff)} м²</Tag> : <Tag color="red">превышение {fmt(bal.diff)} м²</Tag>}
         </Col>
       </Row>
       <Table
@@ -94,24 +95,24 @@ function VolumesTable({ ex }: { ex: Execution }) {
           { title: 'Подрядчик', render: (_, r) => <b>{cName(data, r.cid)}</b> },
           { title: 'Статус формы', render: (_, r) => formStatusTag(me, me.role === 'CLIENT' && r.f && !COUNTED.includes(r.f.status) && !actOf(data, ex.id) ? undefined : r.f) },
           {
-            title: 'Разметка (п.м → м²)', render: (_, r) => !r.showLines ? '—' : r.f!.lines.length === 0 ? <Typography.Text type="secondary">нулевой объём</Typography.Text> : (
+            title: 'Разметка (пог. м → м²)', render: (_, r) => !r.showLines ? '—' : r.f!.lines.length === 0 ? <Typography.Text type="secondary">нулевой объём</Typography.Text> : (
               <Space size={[4, 4]} wrap>
-                {r.f!.lines.map((l) => <Tag key={l.markingTypeId} bordered={false}>{mtCode(data, l.markingTypeId)}: {fmt(l.linearM)} п.м → {fmt(lineM2(data, l))} м²</Tag>)}
+                {r.f!.lines.map((l) => <Tag key={l.markingTypeId} bordered={false}>{mtCode(data, l.markingTypeId)}: {fmt(l.linearM)} пог. м → {fmt(lineM2(data, l))} м²</Tag>)}
               </Space>
             ),
           },
           {
-            title: 'Итого, м²', align: 'right', width: 110,
+            title: 'Итого, м²', align: 'right', width: 110,
             render: (_, r) => !r.showLines ? '—' : r.counted ? <b>{fmt(formTotalM2(data, r.f!))}</b> : <Typography.Text type="secondary">{fmt(formTotalM2(data, r.f!))} (не подана)</Typography.Text>,
           },
         ]}
         summary={() => (
           <>
-            <Table.Summary.Row style={{ background: '#fafafa' }}>
-              <Table.Summary.Cell index={0} colSpan={3} align="right">Подано (учитывается в сверке)</Table.Summary.Cell>
+            <Table.Summary.Row style={{ background: '#f3f5f8' }}>
+              <Table.Summary.Cell index={0} colSpan={3} align="right">Подано (учтено в сверке)</Table.Summary.Cell>
               <Table.Summary.Cell index={3} align="right"><b>{fmt(bal.submitted)}</b></Table.Summary.Cell>
             </Table.Summary.Row>
-            <Table.Summary.Row style={{ background: '#fafafa' }}>
+            <Table.Summary.Row style={{ background: '#f3f5f8' }}>
               <Table.Summary.Cell index={0} colSpan={3} align="right">Титул</Table.Summary.Cell>
               <Table.Summary.Cell index={3} align="right"><b>{fmt(ex.titleM2)}</b></Table.Summary.Cell>
             </Table.Summary.Row>
@@ -209,7 +210,7 @@ function ContractorFormEditor({ ex }: { ex: Execution }) {
       {form?.status === 'TITLE_CHANGED' && <Alert type="error" showIcon style={{ marginBottom: 12 }} message="Изменён титул — проверьте объёмы и подайте форму заново" description={lastComment} />}
       {form?.status === 'WAITING_PARTNER' && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Сумма объёмов ещё не равна титулу — ждём форму партнёра. Если недостача ваша — отзовите форму и дополните." />}
       {form?.autoZero && COUNTED.includes(form.status) && (
-        <Alert type="info" showIcon style={{ marginBottom: 12 }} message="Форма отправлена автоматически с нулями: весь объём выбран другим подрядчиком"
+        <Alert type="info" showIcon style={{ marginBottom: 12 }} message="Форма отправлена автоматически с нулевым объёмом: весь объём выбран другим подрядчиком"
           description="Если вы выполняли работы на этом выполнении — отзовите форму и согласуйте распределение объёма с партнёром." />
       )}
       {locked && <Alert type="info" showIcon style={{ marginBottom: 12 }} message={`Акт ${exAct!.number}: ${ACT_STATUS[exAct!.status].label} — форма заблокирована.`} />}
@@ -218,12 +219,12 @@ function ContractorFormEditor({ ex }: { ex: Execution }) {
         {[
           ['Титул', ex.titleM2],
           ['Подано другими', othersM2],
-          ['Доступно мне', available],
+          ['Доступно вам', available],
           ['Моя форма', myM2],
         ].map(([t, v]) => (
           <Col key={t as string} xs={12} md={6}>
-            <div style={{ background: '#fafafa', borderRadius: 6, padding: '6px 10px' }}>
-              <div style={{ fontSize: 12, color: '#888' }}>{t}</div>
+            <div style={{ background: '#f3f5f8', borderRadius: 6, padding: '6px 10px' }}>
+              <div style={{ fontSize: 12, color: '#5f6b78' }}>{t}</div>
               <b>{fmt(v as number)} м²</b>
             </div>
           </Col>
@@ -243,14 +244,14 @@ function ContractorFormEditor({ ex }: { ex: Execution }) {
               />
             ),
           },
-          { title: 'м²/п.м', width: 70, render: (_, l) => (l.markingTypeId ? fmt(coef(data.markingTypes.find((m) => m.id === l.markingTypeId))) : '—') },
+          { title: 'м² на 1 пог. м', width: 96, render: (_, l) => (l.markingTypeId ? fmtCoef(coef(data.markingTypes.find((m) => m.id === l.markingTypeId))) : '—') },
           {
-            title: 'Объём, п.м', width: 150, render: (_, l) => (
-              <InputNumber min={0} step={10} precision={2} disabled={!editable} style={{ width: '100%' }} value={l.linearM}
+            title: 'Объём, пог. м', width: 150, render: (_, l) => (
+              <InputNumber decimalSeparator="," min={0} step={10} precision={2} disabled={!editable} style={{ width: '100%' }} value={l.linearM || null} placeholder="0"
                 onChange={(v) => setLines(lines.map((x) => (x.key === l.key ? { ...x, linearM: Number(v) || 0 } : x)))} />
             ),
           },
-          { title: '= м²', align: 'right', width: 100, render: (_, l) => <b>{l.markingTypeId ? fmt(lineM2(data, l)) : '—'}</b> },
+          { title: 'Площадь, м²', align: 'right', width: 110, render: (_, l) => <b>{l.markingTypeId ? fmt(lineM2(data, l)) : '—'}</b> },
           ...(editable ? [{
             title: '', width: 40, render: (_: any, l: EditLine) => (
               <Button size="small" type="text" danger icon={<DeleteOutlined />} disabled={lines.length === 1}
@@ -276,7 +277,7 @@ function ContractorFormEditor({ ex }: { ex: Execution }) {
             ? <Alert type="error" showIcon message={`Превышение титула на ${fmt(-after)} м² — подать форму не получится`} />
             : Math.abs(after) <= tol + 1e-9
               ? <Alert type="success" showIcon message="С вашей формой объём сойдётся с титулом. Формы остальных подрядчиков (если не поданы) уйдут автоматически с нулями." />
-              : <Alert type="warning" showIcon message={`После подачи останется недостача ${fmt(after)} м² — её должен закрыть партнёр`} />}
+              : <Alert type="warning" showIcon message={`После подачи останется недостача ${fmt(after)} м² — её должен закрыть другой подрядчик`} />}
         </div>
       )}
       <Space direction="vertical" style={{ marginTop: 12 }}>
@@ -319,21 +320,21 @@ export function FormReview({ ex, contractorId }: { ex: Execution; contractorId: 
   return (
     <Card
       size="small"
-      style={{ marginTop: 12, borderColor: canDecide ? '#91caff' : undefined }}
+      style={{ marginTop: 12, borderColor: canDecide ? '#f5b400' : undefined, borderWidth: canDecide ? 2 : undefined }}
       title={<span>{cName(data, contractorId)} <Typography.Text type="secondary">({data.contractors.find((c) => c.id === contractorId)?.specialization})</Typography.Text></span>}
       extra={formStatusTag(me, hiddenForClient ? undefined : form)}
     >
       {!form || hiddenForClient ? <Typography.Text type="secondary">{isClient ? 'Форма ещё не передана на согласование' : 'Подрядчик ещё не начал заполнять форму'}</Typography.Text> : (
         <>
           {form.autoZero ? (
-            <Alert type="info" showIcon message="Автоформа с нулевым объёмом: весь объём по выполнению выбран другими подрядчиками. Файлы не требуются." />
+            <Alert type="info" showIcon message="Автоматическая форма с нулевым объёмом: весь объём по выполнению выбран другими подрядчиками. Файлы не требуются." />
           ) : (
             <>
               <Table
                 size="small" pagination={false} rowKey="markingTypeId" dataSource={form.lines}
                 columns={[
                   { title: 'Вид разметки', render: (_, l) => { const m = data.markingTypes.find((x) => x.id === l.markingTypeId); return `${m?.code} ${m?.name}`; } },
-                  { title: 'п.м', align: 'right', render: (_, l) => fmt(l.linearM) },
+                  { title: 'пог. м', align: 'right', render: (_, l) => fmt(l.linearM) },
                   { title: 'м²', align: 'right', render: (_, l) => fmt(lineM2(data, l)) },
                 ]}
                 summary={() => (
@@ -411,14 +412,14 @@ export function ExecutionModal({ open, onClose, objectId, ex }: { open: boolean;
           : { number: nextNum, name: `Выполнение №${nextNum}`, contractorIds: [], period: [dayjs().startOf('month'), dayjs().endOf('month')] }}
       >
         <Row gutter={12}>
-          <Col span={6}><Form.Item name="number" label="№" rules={[{ required: true }]}><InputNumber min={1} style={{ width: '100%' }} /></Form.Item></Col>
+          <Col span={6}><Form.Item name="number" label="№" rules={[{ required: true }]}><InputNumber decimalSeparator="," min={1} style={{ width: '100%' }} /></Form.Item></Col>
           <Col span={18}><Form.Item name="name" label="Название" rules={[{ required: true }]}><Input /></Form.Item></Col>
         </Row>
         <Form.Item name="period" label="Период работ" rules={[{ required: true }]}><DatePicker.RangePicker format="DD.MM.YYYY" style={{ width: '100%' }} /></Form.Item>
-        <Form.Item name="titleM2" label="Объём выполнения (общий, без разбивки по видам разметки)"
+        <Form.Item name="titleM2" label="Титульный объём выполнения, м² (без разбивки по видам разметки)"
           rules={[{ required: true, message: 'Укажите объём' }, { validator: async (_, v) => { if (v > available + 1e-9) throw new Error(`Превышает доступный объём объекта (${fmt(available)} м²)`); } }]}
           extra={`Объём объекта ${fmt(obj.titleM2)} м², в других выполнениях ${fmt(obj.titleM2 - available)} м², доступно ${fmt(available)} м²`}>
-          <InputNumber min={0.01} precision={2} addonAfter="м²" style={{ width: '100%' }} />
+          <InputNumber decimalSeparator="," min={0.01} precision={2} addonAfter="м²" style={{ width: '100%' }} />
         </Form.Item>
         {titleChanged && inFlow && (
           <>
@@ -455,8 +456,8 @@ function ExecutionPanel({ ex }: { ex: Execution }) {
   const journal = executionJournal(data, me, ex);
   return (
     <div>
-      <Descriptions size="small" column={1} labelStyle={{ width: 110 }} style={{ background: "#fafafa", padding: '12px 16px', borderRadius: 8 }}>
-        <Descriptions.Item label="Период"><span style={{ whiteSpace: 'nowrap' }}>{fmtDay(ex.periodFrom)} — {fmtDay(ex.periodTo)}</span></Descriptions.Item>
+      <Descriptions size="small" column={1} labelStyle={{ width: 110 }} style={{ background: "#f3f5f8", padding: '12px 16px', borderRadius: 8 }}>
+        <Descriptions.Item label="Период">{`${fmtDay(ex.periodFrom)} — ${fmtDay(ex.periodTo)}`}</Descriptions.Item>
         <Descriptions.Item label="Титул">
           <b>{fmt(ex.titleM2)} м²</b>
           {ex.titleChange && <Tag color="magenta" style={{ marginLeft: 8 }}>изменён: было {fmt(ex.titleChange.from)}</Tag>}
@@ -465,18 +466,19 @@ function ExecutionPanel({ ex }: { ex: Execution }) {
         <Descriptions.Item label="Статус" span={2}><ExecTag data={data} me={me} ex={ex} /></Descriptions.Item>
         {exAct && (
           <Descriptions.Item label="Акт" span={2}>
-            <Link to={`/acts/${exAct.id}`}>{exAct.number}</Link> <Tag color={ACT_STATUS[exAct.status].color}>{ACT_STATUS[exAct.status].label}</Tag>
-            {exAct.round > 1 && <Tag>редакция {exAct.round}</Tag>}
+            <Space size={6} wrap><Link to={`/acts/${exAct.id}`}>{exAct.number}</Link><Tag color={ACT_STATUS[exAct.status].color}>{ACT_STATUS[exAct.status].label}</Tag>
+            {exAct.round > 1 && <Tag>редакция {exAct.round}</Tag>}</Space>
           </Descriptions.Item>
         )}
       </Descriptions>
       <TitleChangeBanner ex={ex} />
 
       <Space wrap style={{ marginTop: 12 }}>
+        {exAct && <ActActions act={exAct} />}
         {canManage && !finalized && (
-          <Button icon={<EditOutlined />} onClick={() => setEdit(true)}>Редактировать выполнение / объём</Button>
+          <Button icon={<EditOutlined />} onClick={() => setEdit(true)}>Изменить выполнение</Button>
         )}
-        {canManage && (
+        {canManage && !finalized && (
           <Popconfirm
             disabled={finalized}
             title={`Удалить ${ex.name}?`}
@@ -487,7 +489,6 @@ function ExecutionPanel({ ex }: { ex: Execution }) {
             <Button danger icon={<DeleteOutlined />} disabled={finalized} title={finalized ? 'Есть согласованный/архивный акт — удаление запрещено' : undefined}>Удалить выполнение</Button>
           </Popconfirm>
         )}
-        {exAct && <ActActions act={exAct} />}
       </Space>
 
       {(!isClient || exAct) && (
@@ -543,7 +544,7 @@ export default function ObjectCard() {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
       <Card
-        title={<Space><Button type="text" icon={<ArrowLeftOutlined />} onClick={() => nav('/objects')} />№ {obj.excelRowNumber}. {obj.name}</Space>}
+        title={<PageTitle onBack={() => nav('/objects')}>{`№ ${obj.excelRowNumber}. ${obj.name}`}</PageTitle>}
         extra={(staff || canManage) && (
           <Space wrap>
             {staff && <Popconfirm
@@ -566,7 +567,7 @@ export default function ObjectCard() {
                 <Button danger icon={<DeleteOutlined />} disabled={locked} title={locked ? 'На объекте есть согласованные/архивные акты — удаление запрещено' : undefined}>Удалить</Button>
               </Popconfirm>
             )}
-            {canManage && <Button type="primary" icon={<PlusOutlined />} disabled={alloc >= obj.titleM2} onClick={() => setNewEx(true)}>Выполнение</Button>}
+            {canManage && <Button type="primary" icon={<PlusOutlined />} disabled={alloc >= obj.titleM2} onClick={() => setNewEx(true)}>Добавить выполнение</Button>}
           </Space>
         )}
       >

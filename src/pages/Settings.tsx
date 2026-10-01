@@ -64,16 +64,16 @@ export default function Settings() {
       </Card>
 
       <Card title="Смена пароля">
-        <Typography.Paragraph type="secondary">После смены пароля все старые сессии (JWT) на других устройствах перестают действовать.</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">После смены пароля сеансы на других устройствах завершаются.</Typography.Paragraph>
         <Space wrap>
           <Input.Password placeholder="Текущий пароль" value={old} onChange={(e) => setOld(e.target.value)} />
           <Input.Password placeholder="Новый пароль" value={p1} onChange={(e) => setP1(e.target.value)} />
-          <Input.Password placeholder="Повторите" value={p2} onChange={(e) => setP2(e.target.value)} status={p2 && p1 !== p2 ? 'error' : undefined} />
+          <Input.Password placeholder="Повторите новый пароль" value={p2} onChange={(e) => setP2(e.target.value)} status={p2 && p1 !== p2 ? 'error' : undefined} />
           <Button type="primary" disabled={!old || !p1 || p1 !== p2} onClick={async () => {
             if (await act(() => actions.changePassword(old, p1), 'Пароль изменён')) { setOld(''); setP1(''); setP2(''); }
-          }}>Сменить</Button>
+          }}>Сменить пароль</Button>
         </Space>
-        {API_MODE && <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>Минимум 6 символов.</Typography.Paragraph>}
+        {API_MODE && <Typography.Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>Не менее 6 символов.</Typography.Paragraph>}
       </Card>
     </Space>
   );

@@ -55,7 +55,7 @@ export function ObjectModal({ open, onClose, obj }: { open: boolean; onClose: ()
       <Form form={form} layout="vertical" preserve={false}
         initialValues={obj || { excelRowNumber: Math.max(0, ...data.objects.map((o) => o.excelRowNumber)) + 1, clientId: me.role === 'CLIENT' ? me.clientId : undefined }}>
         <Form.Item name="excelRowNumber" label="№ п/п (из таблицы Excel)" rules={[{ required: true }]}>
-          <InputNumber min={1} style={{ width: '100%' }} />
+          <InputNumber decimalSeparator="," min={1} style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item name="name" label="Наименование" rules={[{ required: true }]}><Input /></Form.Item>
         <Form.Item name="address" label="Адрес / участок" rules={[{ required: true }]}><Input /></Form.Item>
@@ -64,7 +64,7 @@ export function ObjectModal({ open, onClose, obj }: { open: boolean; onClose: ()
         </Form.Item>
         <Form.Item name="titleM2" label="Общий объём объекта" rules={[{ required: true, message: 'Укажите объём' }]}
           extra={obj ? `Распределено по выполнениям: ${fmt(alloc)} м² — меньше этого значения указать нельзя` : 'Сумма объёмов всех выполнений не сможет превысить это значение'}>
-          <InputNumber min={obj ? alloc : 0.01} precision={2} addonAfter="м²" style={{ width: '100%' }} />
+          <InputNumber decimalSeparator="," min={obj ? alloc : 0.01} precision={2} addonAfter="м²" style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item name="clientId" label="Заказчик" rules={[{ required: true }]}>
           <Select disabled={me.role === 'CLIENT'} options={data.clients.map((c) => ({ value: c.id, label: c.name }))} />
@@ -96,7 +96,7 @@ export default function Objects() {
   return (
     <Card
       title={me.role === 'CONTRACTOR' ? 'Мои объекты' : 'Объекты'}
-      extra={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal(true)}>Объект</Button>}
+      extra={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal(true)}>Добавить объект</Button>}
     >
       <Space wrap style={{ marginBottom: 16 }}>
         <Input prefix={<SearchOutlined />} placeholder="Поиск: № п/п, название, адрес" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 280 }} allowClear />
@@ -114,10 +114,11 @@ export default function Objects() {
       <Table
         rowKey="id"
         dataSource={rows}
+        locale={{ emptyText: q || district || client ? 'Ничего не найдено — измените условия фильтра' : canManage ? 'Объектов пока нет. Нажмите «Добавить объект».' : 'Объектов пока нет' }}
         pagination={{ pageSize: 20 }}
         onRow={(o) => ({ onClick: () => nav(`/objects/${o.id}`), style: { cursor: 'pointer' } })}
         columns={[
-          { title: '№ п/п', dataIndex: 'excelRowNumber', width: 70 },
+          { title: '№', dataIndex: 'excelRowNumber', width: 64 },
           {
             title: 'Объект', render: (_, o) => (
               <div>
@@ -128,7 +129,7 @@ export default function Objects() {
           },
           { title: 'Округ', dataIndex: 'district', width: 80 },
           {
-            title: 'Объём, м²', width: 150, render: (_, o) => {
+            title: 'Объём, м²', width: 150, render: (_, o) => {
               const alloc = allocatedM2(data, o.id);
               return <div><b>{fmt(o.titleM2)}</b><div><Typography.Text type="secondary" style={{ fontSize: 12 }}>в выполнениях: {fmt(alloc)}</Typography.Text></div></div>;
             },

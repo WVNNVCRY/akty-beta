@@ -7,6 +7,9 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 export const fmt = (n: number) =>
   round2(n).toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
+/** Коэффициент м²/пог. м — до 3 знаков (0,025 не должно округляться до 0,03). */
+export const fmtCoef = (n: number) => n.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+
 export const coef = (mt?: MarkingType) => (mt ? mt.widthM * mt.fillRatio : 0);
 
 export function lineM2(data: Data, l: FormLine) {
@@ -51,7 +54,7 @@ export type Stage =
 
 export const STAGE: Record<Stage, { label: string; color: string }> = {
   FILLING: { label: 'Заполнение форм', color: 'default' },
-  WAITING_PARTNER: { label: 'Недостача / ожидание партнёра', color: 'gold' },
+  WAITING_PARTNER: { label: 'Недостача объёма, ожидание партнёра', color: 'gold' },
   ON_CHECK_CLIENT: { label: 'Проверка заказчика', color: 'blue' },
   IN_REVISION: { label: 'На доработке', color: 'orange' },
   ON_CHECK_GC: { label: 'Проверка ГП', color: 'geekblue' },

@@ -89,7 +89,7 @@ export const useStore = API_MODE
   ? create<State>()(creator)
   : create<State>()(
       persist(creator, {
-        name: 'akty-beta-v3',
+        name: 'akty-beta-v4', // v4: пустой старт без демо-объектов
         version: 1,
         onRehydrateStorage: () => (state) => {
           // «Cron»: при загрузке проверяем напоминания

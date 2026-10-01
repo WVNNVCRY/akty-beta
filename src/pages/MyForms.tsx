@@ -24,7 +24,7 @@ export default function MyForms() {
               return <div><b>№ {o.excelRowNumber}. {o.name}</b><div><Typography.Text type="secondary">{ex.name}</Typography.Text></div></div>;
             },
           },
-          { title: 'Объём, м²', align: 'right', render: (_, f) => fmt(formTotalM2(data, f)) },
+          { title: 'Объём, м²', align: 'right', render: (_, f) => fmt(formTotalM2(data, f)) },
           { title: 'Статус', render: (_, f) => <Tag color={FORM_STATUS[f.status].color}>{FORM_STATUS[f.status].label}</Tag> },
           { title: 'Обновлена', render: (_, f) => fmtDate(f.updatedAt) },
           {

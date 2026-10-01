@@ -118,7 +118,7 @@ export class ActsService {
         for (const l of patch?.lines || []) {
           const oldV = merged.get(l.markingTypeId) || 0;
           if (r2(oldV) !== r2(l.linearM)) {
-            changes.push(`${nameOf(row.contractorId)}, ${codeOf(l.markingTypeId)}: ${fmt(oldV)} → ${fmt(l.linearM)} п.м`);
+            changes.push(`${nameOf(row.contractorId)}, ${codeOf(l.markingTypeId)}: ${fmt(oldV)} → ${fmt(l.linearM)} пог. м`);
             merged.set(l.markingTypeId, r2(l.linearM));
           }
         }

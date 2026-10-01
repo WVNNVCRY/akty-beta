@@ -1,9 +1,9 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { App as AntApp, Badge, Button, Layout, Menu, Popconfirm, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { App as AntApp, Badge, Button, Drawer, Grid, Layout, Menu, Popconfirm, Select, Spin, Tooltip } from 'antd';
 import {
-  AppstoreOutlined, AuditOutlined, BellOutlined, CloudUploadOutlined, DashboardOutlined, EnvironmentOutlined,
-  FieldTimeOutlined, FileTextOutlined, InboxOutlined, LogoutOutlined, SettingOutlined, TeamOutlined,
+  AuditOutlined, BellOutlined, CloudUploadOutlined, DashboardOutlined, EnvironmentOutlined,
+  FieldTimeOutlined, FileTextOutlined, InboxOutlined, LogoutOutlined, MenuOutlined, SettingOutlined, TeamOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useMe, useStore } from './store';
@@ -43,7 +43,7 @@ function Shell() {
   const items = useMemo(() => {
     const staff = me.role === 'GC' || me.role === 'MANAGER';
     const arr: any[] = [];
-    if (staff) arr.push({ key: '/', icon: <DashboardOutlined />, label: 'Дашборд' });
+    if (staff) arr.push({ key: '/', icon: <DashboardOutlined />, label: 'Сводка' });
     if (me.role === 'CLIENT') arr.push({ key: '/', icon: <AuditOutlined />, label: 'Акты' });
     arr.push({ key: '/objects', icon: <EnvironmentOutlined />, label: me.role === 'CONTRACTOR' ? 'Мои объекты' : 'Объекты' });
     if (me.role === 'CONTRACTOR') arr.push({ key: '/forms', icon: <FileTextOutlined />, label: 'Мои формы' });
@@ -52,67 +52,99 @@ function Shell() {
     arr.push({ key: '/archive', icon: <InboxOutlined />, label: 'Архив' });
     arr.push({
       key: '/notifications', icon: <BellOutlined />,
-      label: <span>Уведомления {unread > 0 && <Badge count={unread} size="small" style={{ marginLeft: 6 }} />}</span>,
+      label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>Уведомления {unread > 0 && <Badge count={unread} size="small" />}</span>,
     });
     arr.push({ key: '/settings', icon: <SettingOutlined />, label: 'Настройки' });
-    if (me.role === 'GC') arr.push({ key: '/admin', icon: <TeamOutlined />, label: 'Админка' });
+    if (me.role === 'GC') arr.push({ key: '/admin', icon: <TeamOutlined />, label: 'Администрирование' });
     return arr;
   }, [me.role, unread]);
 
   const selected = '/' + (loc.pathname.split('/')[1] || '');
+  const screens = Grid.useBreakpoint();
+  const mobile = !screens.lg;
+  const [drawer, setDrawer] = useState(false);
+  useEffect(() => setDrawer(false), [loc.pathname]);
+
+  const brand = (
+    <div className="app-brand">
+      <div className="app-brand-title"><span className="app-brand-mark" />Акты скрытых работ</div>
+      <div className="app-brand-sub">дорожная разметка · бета</div>
+    </div>
+  );
+  const menu = <Menu theme="dark" mode="inline" selectedKeys={[selected]} items={items} onClick={(e) => nav(e.key)} style={{ borderInlineEnd: 0 }} />;
+
+  const demoBar = !API_MODE && (
+    <div className="demo-bar">
+      <span className="demo-badge">ДЕМО</span>
+      <Tooltip title="Сдвиг времени для проверки напоминаний (2 и 5 дней) и блока «Требует внимания»">
+        <span className="tnum"><FieldTimeOutlined /> {dayjs(nowMs({ clockOffsetDays } as any)).format('DD.MM.YYYY')}{clockOffsetDays ? ` (+${clockOffsetDays} дн.)` : ''}</span>
+      </Tooltip>
+      <Button size="small" onClick={() => {
+        run((d) => {
+          d.clockOffsetDays += 1;
+          checkReminders(d);
+        });
+        message.info('Время сдвинуто на 1 день вперёд, напоминания проверены');
+      }}>+1 день</Button>
+      <Select
+        size="small"
+        style={{ width: mobile ? '100%' : 280 }}
+        value={me.id}
+        onChange={(v) => {
+          loginAs(v);
+          nav('/');
+        }}
+        options={users.filter((u) => u.active).map((u) => ({ value: u.id, label: `${u.name} — ${ROLE_LABEL[u.role]}` }))}
+        popupMatchSelectWidth={false}
+      />
+      <Popconfirm title="Сбросить данные демо-режима?" description="Объекты, формы, акты и уведомления будут удалены. Пользователи и справочники сохранятся." okText="Сбросить" okButtonProps={{ danger: true }} onConfirm={async () => {
+        await clearFiles();
+        reset();
+        nav('/');
+      }}>
+        <Button size="small" danger>Сброс</Button>
+      </Popconfirm>
+    </div>
+  );
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider breakpoint="lg" collapsedWidth={0} width={220} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
-        <div style={{ padding: '16px 16px 8px', fontWeight: 700, lineHeight: 1.2 }}>
-          <AppstoreOutlined style={{ color: '#1677ff' }} /> Акты скрытых работ
-          <div style={{ fontSize: 11, fontWeight: 400, color: '#999', marginTop: 4 }}>дорожная разметка · бета</div>
+    <Layout style={{ minHeight: '100vh', background: mobile ? undefined : '#1f252c' }}>
+      {!mobile && (
+        <Sider width={232} style={{ position: 'sticky', top: 0, height: '100vh', overflow: 'auto' }}>
+          {brand}
+          {menu}
+        </Sider>
+      )}
+      <Drawer className="app-drawer" placement="left" width={264} open={mobile && drawer} onClose={() => setDrawer(false)} closable={false}>
+        {brand}
+        <div style={{ padding: '0 18px 12px', color: '#e7ebef' }}>
+          <div style={{ fontWeight: 500 }}>{me.name}</div>
+          <div style={{ fontSize: 12, color: '#97a3b0' }}>{ROLE_LABEL[me.role]}</div>
         </div>
-        <Menu mode="inline" selectedKeys={[selected]} items={items} onClick={(e) => nav(e.key)} style={{ borderRight: 0 }} />
-      </Sider>
+        {menu}
+      </Drawer>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', height: 'auto', minHeight: 64, lineHeight: '64px' }}>
-          {!API_MODE && <Space style={{ background: '#fffbe6', border: '1px dashed #faad14', borderRadius: 6, padding: '0 8px', lineHeight: '36px' }} wrap>
-            <Tag color="orange">ДЕМО</Tag>
-            <Tooltip title="Сдвиг времени для проверки напоминаний (2 / 5 дней) и виджета «Проблемные акты»">
-              <span><FieldTimeOutlined /> {dayjs(nowMs({ clockOffsetDays } as any)).format('DD.MM.YYYY')}{clockOffsetDays ? ` (+${clockOffsetDays} дн.)` : ''}</span>
-            </Tooltip>
-            <Button size="small" onClick={() => {
-              run((d) => {
-                d.clockOffsetDays += 1;
-                checkReminders(d);
-              });
-              message.info('Время сдвинуто на +1 день, напоминания проверены');
-            }}>+1 день</Button>
-            <Select
-              size="small"
-              style={{ width: 260 }}
-              value={me.id}
-              onChange={(v) => {
-                loginAs(v);
-                nav('/');
-              }}
-              options={users.filter((u) => u.active).map((u) => ({ value: u.id, label: `${u.name} — ${ROLE_LABEL[u.role]}` }))}
-            />
-            <Popconfirm title="Сбросить все данные к демо-набору?" onConfirm={async () => {
-              await clearFiles();
-              reset();
-              nav('/');
-            }}>
-              <Button size="small" danger>Сброс</Button>
-            </Popconfirm>
-          </Space>}
-          {API_MODE && <Tag color="green" style={{ lineHeight: '22px' }}>Сервер · общая база</Tag>}
+        <Header className="app-header">
+          {mobile && <Button type="text" icon={<MenuOutlined />} onClick={() => setDrawer(true)} style={{ color: '#e7ebef' }} aria-label="Меню" />}
+          {mobile && <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Акты скрытых работ</span>}
+          {!mobile && demoBar}
+          {API_MODE && !mobile && <span className="app-mode">Сервер</span>}
           <div style={{ flex: 1 }} />
-          <Badge count={unread} size="small">
-            <Button shape="circle" icon={<BellOutlined />} onClick={() => nav('/notifications')} />
+          <Badge count={unread} size="small" offset={[-2, 2]}>
+            <Button icon={<BellOutlined />} onClick={() => nav('/notifications')} aria-label="Уведомления" />
           </Badge>
-          <Typography.Text>
-            {me.name} <Tag>{ROLE_LABEL[me.role]}</Tag>
-          </Typography.Text>
-          <Button icon={<LogoutOutlined />} onClick={() => { logout(); nav('/'); }}>Выйти</Button>
+          {!mobile && (
+            <div className="app-user">
+              <span className="app-user-name">{me.name}</span>
+              <span className="app-user-role">{ROLE_LABEL[me.role]}</span>
+            </div>
+          )}
+          <Tooltip title={mobile ? 'Выйти' : undefined}>
+            <Button icon={<LogoutOutlined />} onClick={() => { logout(); nav('/'); }}>{mobile ? null : 'Выйти'}</Button>
+          </Tooltip>
         </Header>
-        <Content style={{ padding: 20, background: '#f5f7fa' }}>
+        {mobile && demoBar && <div style={{ background: '#272e36', padding: '0 12px 10px' }}>{demoBar}</div>}
+        <Content className="app-content">
           <Routes>
             <Route path="/" element={me.role === 'CONTRACTOR' ? <Objects /> : me.role === 'CLIENT' ? <Acts /> : <Dashboard />} />
             <Route path="/objects" element={<Objects />} />

@@ -4,7 +4,7 @@ import { ZodError } from 'zod';
 
 /** Ошибка бизнес-правила — текст показывается пользователю как есть. */
 export const biz = (message: string): never => { throw new BadRequestException(message); };
-export const forbid = (message = 'Нет прав'): never => { throw new ForbiddenException(message); };
+export const forbid = (message = 'Недостаточно прав для этого действия'): never => { throw new ForbiddenException(message); };
 export const notFound = (message: string): never => { throw new NotFoundException(message); };
 
 @Catch()

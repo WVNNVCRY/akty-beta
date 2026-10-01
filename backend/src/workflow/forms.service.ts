@@ -91,7 +91,7 @@ export class FormsService {
     await tx.contractorForm.update({ where: { id: form!.id }, data: { status: 'WAITING_PARTNER', autoZero: false, submittedAt: new Date() } });
     await hist(tx, { userId: u.id, action: `Форма подана: ${fmt(n(form!.totalM2))} м²`, formId: form!.id });
     await touch(tx, ex.id);
-    if (await this.advance(tx, ex.id)) return 'Объёмы сошлись с титулом — формы отправлены заказчику.';
+    if (await this.advance(tx, ex.id)) return 'Сумма объёмов равна титулу — формы направлены заказчику.';
     const { label, link, rel } = exLabel(ex);
     const name = await contractorNames(tx, [form!.contractorId]);
     const partners = contractorIdsOf(ex).filter((c) => c !== form!.contractorId);
@@ -126,22 +126,22 @@ export class FormsService {
         comment: hadData ? 'Данные черновика сброшены. Если вы выполняли работы — отзовите форму и согласуйте объёмы с партнёром.' : null,
       });
       await this.notifier.notify(tx, await this.notifier.contractorUserIds(tx, [cid]),
-        `Весь объём по ${label} выбран другим подрядчиком — ваша форма отправлена автоматически с нулями`, link, { kind: 'IMPORTANT', ...rel });
+        `Весь объём по ${label} выбран другим подрядчиком — ваша форма отправлена автоматически с нулевым объёмом`, link, { kind: 'IMPORTANT', ...rel });
     }
 
     const waiting = await tx.contractorForm.findMany({ where: { executionId: ex.id, status: 'WAITING_PARTNER' }, select: { id: true } });
     for (const f of waiting) {
       await tx.contractorForm.update({ where: { id: f.id }, data: { status: 'ON_CHECK_CLIENT' } });
-      await hist(tx, { action: 'Объёмы сошлись с титулом — форма направлена заказчику', formId: f.id });
+      await hist(tx, { action: 'Сумма объёмов равна титулу — форма направлена заказчику', formId: f.id });
     }
 
     let act = ex.act;
     if (!act) {
       const st = await tx.settings.update({ where: { id: 1 }, data: { actCounter: { increment: 1 } } });
       act = await tx.act.create({
-        data: { number: `АСР-${String(st.actCounter).padStart(4, '0')}`, executionId: ex.id, objectId: ex.objectId, status: 'ON_CHECK_CLIENT', totalM2: 0 },
+        data: { number: `АОСР-${String(st.actCounter).padStart(4, '0')}`, executionId: ex.id, objectId: ex.objectId, status: 'ON_CHECK_CLIENT', totalM2: 0 },
       });
-      await hist(tx, { action: 'Объёмы сошлись с титулом — акт создан и направлен заказчику', actId: act.id });
+      await hist(tx, { action: 'Сумма объёмов равна титулу — акт сформирован и направлен заказчику', actId: act.id });
     } else if (act.status === 'IN_REVISION') {
       act = await tx.act.update({ where: { id: act.id }, data: { round: { increment: 1 } } });
       await setActStatus(tx, act.id, 'ON_CHECK_CLIENT', null, `Формы исправлены — акт повторно направлен заказчику (редакция ${act.round})`);
@@ -175,9 +175,9 @@ export class FormsService {
       // автоформы с нулями были созданы из-за этой формы — сбрасываем их тоже
       for (const x of ex.forms.filter((f) => f.id !== form.id && f.autoZero && COUNTED.includes(f.status))) {
         await tx.contractorForm.update({ where: { id: x.id }, data: { status: 'DRAFT', autoZero: false } });
-        await hist(tx, { action: `Автоформа с нулями сброшена: ${name} отозвал свою форму`, formId: x.id });
+        await hist(tx, { action: `Автоматическая форма с нулевым объёмом сброшена: ${name} отозвал свою форму`, formId: x.id });
         await this.notifier.notify(tx, await this.notifier.contractorUserIds(tx, [x.contractorId]),
-          `${name} отозвал форму (${label}) — ваша автоформа с нулями сброшена, объём снова открыт`, link, { kind: 'ACTION', ...rel });
+          `${name} отозвал форму (${label}) — ваша автоматическая форма с нулевым объёмом сброшена, объём снова открыт`, link, { kind: 'ACTION', ...rel });
       }
       await actToRevision(tx, ex, u.id, `${name} отозвал форму — акт на доработке`);
       await touch(tx, ex.id);
